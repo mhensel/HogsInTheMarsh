@@ -1,0 +1,999 @@
+---
+title: "Hogs in the Marsh analyses"
+author: "Marc J S Hensel"
+date: "5/6/2021"
+output: html_document
+---
+Here is all of the code for analyses and figures for Hensel et al 
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Packages needed for now.  Update as necessary
+
+```{r packages/funcs, echo = F}
+setwd("~/Documents/R projects/Hog data code")
+
+library(lubridate)
+library(tidyverse)
+library(lme4)
+library(lmerTest)
+library(car)
+library(knitr)
+library(DHARMa)
+library(emmeans)
+
+SE <- function(x) sd(x)/sqrt(length(x))
+```
+
+
+### Figure 1
+Drone survey of sites with different levels of hog activity.  Gradient on x axis is how much predicticed hog damage occurs in a given hectare of marsh.  This is calculated through land cover data in a published study from Sharp et al. 
+
+```{r, load in survey stats data}
+surveystats_fixed <- read.csv("./surveystats_PUB.csv")
+```
+site: site
+pred.disturb: predicted level of hog disturbance (m2 disturbance per 10000 m2)
+pred.level: low, medium, high correlate w pred.disturb
+flight: name of flight.  at most 2 flights per site
+patcharea: area (m) of patches
+mudarea: area (m) of mud (inverse grass)
+
+RVs:  total number of patches
+      mean patch area
+
+totalP below is the total number of patches in each flight per site
+
+```{r Fig 2b total number of patches }
+surveystats_fixed %>% 
+  group_by(pred.level, site) %>%
+  summarise(totalP = length(patcharea)) %>%
+  summarise(totP = mean(totalP), SE = SE(totalP)) %>%
+  ggplot(data = ., aes(x = pred.level, y = totP)) +
+  geom_point(size = 5) +
+  geom_errorbar(aes(x = pred.level, ymin = totP + -SE, ymax = totP + SE, width = 0)) +
+  scale_x_discrete(limits = c("low", "medium", "high")) +
+  labs(x = expression("Hog activity level") , y = expression("number of remnant patches")) +
+  theme(axis.line = element_line(colour = "black"),
+        text = element_text(size=18),
+        axis.text.x = element_text(angle=0, vjust=1, hjust =.5, color = "black"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        panel.background = element_blank())
+
+```
+
+```{r data table for fig 2b}
+ssMod <- surveystats_fixed %>% 
+  group_by(pred.level, pred.disturb, site, flight) %>%
+  #filter(site!= "Tim")%>% 
+  summarise(totalP = length(patcharea))
+#%>%
+#  summarise(totP = mean(totalP), SE = SE(totalP))
+
+
+```
+
+
+```{r Fig 2b stats}
+
+nopatches_glmer <- glmer(totalP ~ pred.level * (1|site), 
+                        family = poisson,
+                        data = ssMod)
+plot(simulateResiduals(nopatches_glmer))
+
+Anova(nopatches_glmer)
+drop1(nopatches_glmer, test = "Chisq")
+summary(nopatches_glmer)
+
+nopatches_lmer <- lmer(totalP ~ pred.level * (1|site), REML = T, data = ssMod)
+
+Anova(nopatches_lmer)
+summary(nopatches_lmer)
+Anova(nopatches_lmer, test.statistic = "F")
+
+#nopatches_simple <- lm(totalP ~ pred.level +site, data = ssMod)
+
+#Anova(nopatches_simple)
+#summary(nopatches_simple)
+```
+
+```{r echo = FALSE, results = 'asis'}
+#probably should pixiedust this
+kable(Anova(nopatches_glmer))
+```
+
+
+```{r Fig 2a patch area}
+
+surveystats_fixed %>% 
+  #filter(site!= "Tim")%>% 
+  group_by(pred.level) %>%
+  summarise(meanA = mean(patcharea), SE = SE(patcharea)) %>%
+  ggplot(data = ., aes(x = pred.level, y = meanA)) +
+  geom_point( size = 5) +
+  geom_errorbar(aes(x = pred.level, ymin = meanA + -SE, ymax = meanA + SE, width = 0)) +
+  geom_smooth(method = 'lm') +
+  scale_x_discrete(limits = c("low", "medium", "high")) +
+  labs(x = expression("Hog activity level") , y = expression("remnant patch area " (m^2))) +
+  theme(axis.line = element_line(colour = "black"),
+        text = element_text(size=18),
+        axis.text.x = element_text(angle=0, vjust=1, hjust =.5, color = "black"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        panel.background = element_blank())
+```
+
+```{r means and SE for patch area Fig 2a}
+patchA <- surveystats_fixed %>% 
+  #filter(site!= "Tim")%>% 
+  group_by(pred.level, pred.disturb, flight, site) %>%
+  summarise(meanA = mean(patcharea), SE = SE(patcharea))
+```
+
+
+Model: Mean Patch Area ~ predicted disturbance * site 
+ANOVA
+
+```{r Fig 2a stats}
+
+patches_glmer <- glmer(patcharea ~ pred.level * (1|site), 
+                       family = Gamma,
+                       data = surveystats_fixed %>% filter(site!= "Tim"))
+
+plot(simulateResiduals(patches_glmer))
+summary(patches_glmer)
+Anova(patches_glmer)
+drop1(patches_glmer, test = "Chisq")
+anova(patches_glmer)
+
+## do the mixed effects model first.  Stats show no differences though
+#Tim is filtered out
+```
+
+```{r echo = FALSE, results = 'asis'}
+kable(Anova(patches_glmer))
+```
+
+
+```{r}
+ssMod <- surveystats_fixed %>% 
+  group_by(pred.level, pred.disturb, site, flight) %>%
+  #filter(site!= "Tim")%>% 
+  summarise(totalP = length(patcharea))
+
+
+patch.no = surveystats_fixed %>% group_by(flight, pred.level, site) %>%
+  summarize(totalP = length(patcharea))
+
+patchy = surveystats_fixed %>% group_by(flight, pred.level, site)  %>%
+  summarize(patchy = mean(patcharea))
+
+patchiness = full_join(patch.no, patchy) %>% 
+  mutate(patchiness = totalP*patchy)
+
+patchiness_glmer <- glmer(patchiness ~ pred.level * (1|site), 
+                       family = Gamma,
+                       data = patchiness)
+
+ ggplot(data = patchiness, aes(x = pred.level, y = patchiness)) +
+  geom_point( size = 5) +
+  #geom_errorbar(aes(x = pred.level, ymin = meanA + -SE, ymax = meanA + SE, width = 0)) +
+  geom_smooth(method = 'lm') +
+  scale_x_discrete(limits = c("low", "medium", "high")) +
+  labs(x = expression("Hog activity level") , y = expression("remnant patch area " (m^2))) +
+  theme(axis.line = element_line(colour = "black"),
+        text = element_text(size=18),
+        axis.text.x = element_text(angle=0, vjust=1, hjust =.5, color = "black"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        panel.background = element_blank())
+
+```
+
+
+
+Can also do means for each site above (no geom_smooth) see below
+
+```{r Fig 2c mussel survey TOTAL MUSSELS stats}
+muss_data <- read.csv("~/muss.surv_raw.csv")
+
+muss.total <- muss_data %>%
+  group_by(Hog, Site, Area) %>%
+  summarise(muss_tot = sum(No.muss)) 
+
+#new error struc
+muss.glmer.nb <- glmer.nb(No.muss ~ Hog * Area * (1|Site), data = muss_data)
+
+res_mus <- simulateResiduals(muss.glmer.nb)
+plot(res_mus)
+
+car::Anova(muss.glmer.nb)
+#car::Anova(muss.glm, test.statistic = "F")
+summary(muss.glmer.nb)
+muss_em <- emmeans(muss.glmer.nb, specs = pairwise ~ Hog:Area)
+muss_em$contrasts
+
+muss.total_graph <- muss_data %>%
+  group_by(Hog, Area, Site) %>%
+  summarise(muss_tot = sum(No.muss), SE = SE(No.muss)) 
+
+```
+
+
+```{r echo = FALSE, results = 'asis'}
+kable(Anova(muss.glmer.nb))
+```
+  
+```{r mussel survey TOTAL MUSSELS Figure}
+
+#muss_data %>% 
+  #group_by(Hog, Area) %>%
+  #summarise(muss_sum = sum(No.muss)) %>%
+  #summarise(muss_tot = mean(muss_sum), SE = SE(muss_sum)) %>%
+  
+  
+  ggplot(data = muss.total_graph, aes(x = Hog, y = muss_tot, shape = Area), position = position_dodge(0.1)) +
+  stat_summary(fun.y = mean, geom = "point", size = 3.5) +
+  stat_summary(fun.data = mean_se, geom = "errorbar", width = 0) +
+    scale_x_discrete(limits = c("low", "high")) +
+  labs(x = "Hog activity level", y = expression("total mussels per marsh")) +
+  theme(axis.line = element_line(colour = "black"),
+        text = element_text(size=15),
+        axis.text.x = element_text(angle=0, vjust=1, hjust =0.5, color = "black"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        panel.background = element_blank())
+
+
+```
+
+```{r Fig 2d mussel association % w Spartina}
+#muss.ass <- muss_data %>%
+#  group_by(Hog, Area, Site) %>%
+#  summarize(per.ass = mean(sum(Cord)/length(Cord)))
+
+#calculate %
+muss.glmdat <- muss_data %>%
+  group_by(Hog, Area, Site) %>%
+  summarize(yes = sum(Cord), tot = length(Cord), proyes = sum(Cord)/length(Cord))
+
+#new error struc
+muss.ass.glm <- glmer(proyes ~ Hog * Area + (1|Site) , data = muss.glmdat, family = binomial, weights = tot)
+
+res_mus <- simulateResiduals(muss.ass.glm)
+plot(res_mus)
+Anova(muss.ass.glm)
+summary(muss.ass.glm)
+```
+
+
+```{r Mussel and Cordgrass association}
+
+muss_data %>%
+  group_by(Hog, Area, Site) %>%
+  summarize(per.ass = mean(sum(Cord)/length(Cord))*100) %>%
+  ggplot(data = ., aes(x = Hog, y = per.ass, shape = Area)) +
+  stat_summary(fun.y = mean, geom = "point", size = 3.5) +
+  stat_summary(fun.data = mean_se, geom = "errorbar", width = 0) +
+    scale_x_discrete(limits = c("low", "high")) +
+  #geom_point(size = 3, position = position_dodge(0.1)) +
+ # geom_errorbar(aes(x = Hog , ymin = muss_tot + -SE, ymax = muss_tot + SE, width = 0.05)) +
+  labs(x = "Hog activity level", y = expression("Cordgrass-mussel association %")) +
+  ylim(0,120) +
+  theme(axis.line = element_line(colour = "black"),
+        text = element_text(size=15),
+        axis.text.x = element_text(angle=0, vjust=1, hjust =0.5, color = "black"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        panel.background = element_blank())
+
+```
+
+```{r echo = FALSE, results = 'asis'}
+kable(Anova(muss.ass.glm))
+```
+
+
+Next up is the patch recovery experiment where I excluded hogs from recovering patches.  All plots started with 50% grass coverage.  Measured % coverage of the whole plot throughout the course of the experiment 
+
+## Figure 2.  
+The effect of hog exclusion on the recovery of salt marsh patches at two sites over 3 years
+
+```{r Patch Recovery Data}
+patchrecovFinal <- read.csv("~/patchrecovFinal.csv")
+patchrecovFinal$Date <- as.Date(patchrecovFinal$Date, format = '%m/%d/%y')
+
+patchrecov2 <- patchrecovFinal %>%
+  group_by(Date, Treatment, mths.since) %>% 
+  filter(!Date == "2015-12-17") %>%
+  summarise(mean_cover_change = mean(per.final), SE = SE(per.final))  
+
+```
+Site: site Kenan or Miller Pump
+Date: sampling date in M/D/Y
+Plot: Plot number 1-8
+Treatment: Control or Exclusion
+mths.since: months since beginning of experiment. could be used to calc rate
+X live.stem: live stem density /.25m2 (x4 for m2)
+X dead.stem and others are not used 
+per.initial: percent cover of plot at beginning of exp (50%)
+per.final: percent cover of plot at sampling date
+per.change: per.final - per.initial at sampling date
+
+
+
+mean_cover_change is mean % cover of the plot per treatment at the date sampled.  Averaged across sites
+```{r Figure 2 OLD CODE. WORKS BUT IS MORE COMPLICATED}
+patchrecovFinal %>%
+  filter(!Date == "2015-12-17") %>%
+  group_by(Date, Treatment, Site) %>% 
+  summarise(mean_cover_change = mean(per.final), SE = SE(per.final)) %>%
+  ggplot(data = ., aes(x = Date, y = mean_cover_change, shape = Treatment)) +
+  geom_point() +
+ # geom_line(aes(linetype = Treatment)) + 
+  geom_smooth(method = "lm") +
+  geom_errorbar(aes(x = Date, ymin = mean_cover_change + -SE, ymax = mean_cover_change + SE, width = 0)) +
+  #facet_wrap(~Site) +
+  labs(x = "", y = expression("Percent cover/plot" )) +
+  ylim(25, 100)+
+  theme(axis.line = element_line(colour = "black"),
+        text = element_text(size=20),
+        axis.text.x = element_text(angle=70, vjust=1, hjust = 1),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        panel.background = element_blank())
+
+
+```
+
+```{r Fig 2 using stat sum and no stupid error bar code}
+
+#################
+patchrecovFinal %>%
+  filter(!Date == "2015-12-17") %>%
+ggplot(data = ., aes(x=Date, y = per.final, lty = Treatment, shape = Treatment)) +
+ stat_summary() +
+  geom_smooth(method = "lm", se = FALSE) +
+ #geom_line(data = patchrecov, mapping=aes(y=mean_cover_change)) +
+# facet_wrap(~Site) +
+  labs(x = "", y = expression("Percent cordgrass cover/plot" )) +
+  ylim(25, 100) +
+  theme(legend.title = element_blank(), 
+        legend.text = element_text(size = 10)) +
+  theme(axis.line = element_line(colour = "black"),
+        text = element_text(size=16),
+        axis.text.x = element_text(angle=30, vjust=1, hjust = 1),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        panel.background = element_blank())
+
+
+```
+
+
+
+```{r FIG 3 STATS MIXED EFFECTS}
+end <- c(86, 65.625, 95.625, 91.125) #end % for rate calc. CK CMP EK EMP is the order here
+end/2.5 #approx recovery rate per year
+(end - 50)/2.5 #raw % recovery per year
+
+
+patchrecov_mer <- lmer(per.final ~ mths.since*Treatment* (1|Site) *(1|Plot), REML = T , data = patchrecovFinal %>% filter(!Date == "2015-12-17"))
+
+summary(patchrecov_mer)
+Anova(patchrecov_mer, test.statistic = "F")
+car::vif(patchrecov_mer)
+patchrecov_em <- emmeans(patchrecov_mer, specs = pairwise ~ mths.since:Treatment)
+patchrecov_em$contrasts
+
+
+qqnorm(patchrecovFinal$per.final)
+qqnorm(residuals(patchrecov_mer))
+plot(patchrecov_mer)
+
+```
+
+```{r echo = FALSE, results = 'asis'}
+kable(Anova(patchrecov_mer))
+```
+
+## Figure 3.  
+Hog presence reverses a salt marsh positive interaction network
+
+Here is the results from the hogXmussel experiment, fully factorial hog and mussel addition treatments.  Mussel additions were pressed after year 1 and 2.  RVs are all relevant to the positive int netword described by Angelini et al.  RVs presented are final (ie end of the experiment)
+RVs-  live Spartina biomass/m2
+      ribbed mussel density/m2
+      fiddler crab burrow density/m2
+      marsh crab burrow density/m2 (Sesarma and Mud Crab)
+
+
+Read this data in.  it has all the RVs from this experiment
+```{r end of experiment data for the hog x mussel experiment}
+finalhogmussel <- read.csv("~/finalhogmussel.csv")
+```
+Site
+Date
+Plot: 1-10
+Treatment: treatment written out in full
+Mussels: + or O
+Control/Exclusion: C or E , Hog Control or Hog Exclusion
+livegrass_1: live spartina density/.25m2, measured 3 times
+fid_1: fiddler crab burrow density/.25m2
+mussel_1: mussel density/.25m2
+crabs_1: mud crab or sesarma burrow density/.25m2
+```{r master filtered data}
+HMMaster <- finalhogmussel %>%
+  group_by(Mussels, Control.Exclusion) %>% 
+  summarise(sp.dens = (mean(c(livegrass_1, livegrass_2, livegrass_3)))*2, 
+            mussel.dens = (mean(c(mussel_1, mussel_2, mussel_3)))*2, 
+            fid.dens = (mean(c(fid_1, fid_2, fid_3)))*2, 
+            crab.dens = (mean(c(crabs_1, crabs_2, crabs_3)))*2)
+
+#Code below doesnt use this yet but could
+```
+Summary (mean) stats
+sp.dens = Spartina density per m2
+mussel.dens = mussel density per m2
+fid.dens = fiddler crab burrow density per m2
+crab.dens = marsh crab burrow density per m2
+
+##Fig 4a stats
+First stats for NPP.  Grouped by treatment (Mussels, Control.Exclusion), Site (pooled for these because the stats say no diffs between sites)
+
+sp.dens = mean spartina density/m2
+
+  stat_summary(fun.y = mean, geom = "point", size = 3.5) +
+  stat_summary(fun.data = mean_se, geom = "errorbar", width = 0) 
+
+```{r stats BIOMASS EST}
+#calc biomass
+biomE <- finalhogmussel %>%
+  group_by(Mussels, Control.Exclusion, Site, Plot) %>% 
+  summarise(sp.biom = ((mean(c(livegrass_1, livegrass_2, livegrass_3)))*4)* (mean(c(stemh_1, stemh_2, stemh_3, stemh_4, stemh_5, stemh_6, stemh_7, stemh_8, stemh_9, stemh_10)))/16, SE = ((SE(c(livegrass_1, livegrass_2, livegrass_3)))*4)* (mean(c(stemh_1, stemh_2, stemh_3, stemh_4, stemh_5, stemh_6, stemh_7, stemh_8, stemh_9, stemh_10)))/16)
+
+
+
+biom.lme <- lmer(sp.biom ~ Control.Exclusion *Mussels * (1|Site), data = biomE, REML = T)
+Anova(biom.lme, test.statistic = "F")
+summary(biom.lme)
+
+biom_em <- emmeans(biom.lme, specs = pairwise ~ Control.Exclusion:Mussels)
+biom_em$contrasts
+
+plot(simulateResiduals(biom.lme))
+qqnorm(residuals(biom.lme))
+
+
+```
+
+
+
+
+```{r BIOMASS, Fig 4a}
+#biomass?
+finalhogmussel %>%
+  group_by(Mussels, Control.Exclusion) %>% 
+  summarise(sp.biom = ((mean(c(livegrass_1, livegrass_2, livegrass_3)))*4)* (mean(c(stemh_1, stemh_2, stemh_3, stemh_4, stemh_5, stemh_6, stemh_7, stemh_8, stemh_9, stemh_10)))/16, SE = ((SE(c(livegrass_1, livegrass_2, livegrass_3)))*4)* (mean(c(stemh_1, stemh_2, stemh_3, stemh_4, stemh_5, stemh_6, stemh_7, stemh_8, stemh_9, stemh_10)))/16) %>%
+  ggplot(data = ., aes(x = Control.Exclusion, y = sp.biom, shape = Mussels), position = position_dodge(.1)) +
+  geom_point(size = 3, position = position_dodge(0.1)) +
+  geom_errorbar(aes(x = Control.Exclusion , ymin = sp.biom + -SE, ymax = sp.biom + SE, width = 0.05), position = position_dodge(0.1)) +
+  #stat_summary() +
+  ylim(0, 800) +
+  labs(x = "", y = expression("Cordgrass biomass (g) /m" ^2 )) +
+  theme(legend.title = element_blank(),
+        legend.text = element_text(size = 12)) +
+  theme(axis.line = element_line(colour = "black"),
+        text = element_text(size=18),
+        axis.text.x = element_text(angle=0, vjust=1, hjust =.5, color = "black"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        panel.background = element_blank())
+
+```
+
+
+
+NPP plot below.  Site is not included in the group_by because there were no diffs between the two sites
+
+sp.dens = mean spartina density/m2
+```{r Figure 4a}
+#pooling sites together because of the ANOVA results
+finalhogmussel %>% arrange(Control.Exclusion) %>%
+  mutate(Control.Exclusion = factor(Control.Exclusion, levels=c("Hog exclusion", "Hog control"))) %>%
+  group_by(Mussels, Control.Exclusion) %>% 
+  summarise(sp.dens = (mean(c(livegrass_1, livegrass_2, livegrass_3)))*4, SE = SE(c(livegrass_1, livegrass_2, livegrass_3)*4)) %>%
+  ggplot(data = ., aes(x = Control.Exclusion, y = sp.dens, shape = Mussels), position = position_dodge(0.1)) +
+  geom_point(size = 3.5, position = position_dodge(0.1)) +
+  geom_errorbar(aes(x = Control.Exclusion , ymin = sp.dens + -SE, ymax = sp.dens + SE, width = 0.05), position = position_dodge(0.1)) +
+  labs(x = "", y = expression("Spartina stems/m" ^2 )) +
+  ylim(0, 210) +
+  theme(legend.title = element_blank(),
+        legend.text = element_text(size = 12)) +
+  theme(axis.line = element_line(colour = "black"),
+        text = element_text(size=18),
+        axis.text.x = element_text(angle=0, vjust=1, hjust =.5, color = "black"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        panel.background = element_blank())
+
+
+```
+
+
+##Fig 4b Ribbed Mussels
+
+mussel.dens = mean mussel density/m2
+```{r Fig 4b mussel density stats}
+###MUSSEL######
+HMMuss <- finalhogmussel %>%
+  group_by(Mussels, Control.Exclusion, Site, Plot) %>% 
+  summarise(mussel.dens = (mean(c(mussel_1, mussel_2, mussel_3)))*4)
+
+
+hmmuss.lme <- lmer(mussel.dens ~ Control.Exclusion * Mussels * (1|Site), data = HMMuss, REML = T)
+Anova(hmmuss.lme, test.statistic = "F")
+summary(hmmuss.lme)
+
+hmmuss_em <- emmeans(hmmuss.lme, specs = pairwise ~ Control.Exclusion:Mussels)
+hmmuss_em$contrasts
+
+
+#mussel_mod <- lm(mussel.dens ~ Control.Exclusion * Site*Mussels+0, data = HMMuss)
+
+#mussAnova<- Anova(mussel_mod)
+#summary(mussel_mod)
+
+#a6 <- aov(mussel.dens ~ Control.Exclusion * Site*Mussels, data = HMMuss)
+#TukeyHSD(a6)
+
+##No interaction with site so we are good here to sum everything together##
+```
+
+```{r echo = FALSE, results = 'asis'}
+kable(Anova(hmmuss.lme))
+```
+
+
+```{r Fig 3b Mussel density}
+finalhogmussel %>%
+  group_by(Mussels, Control.Exclusion) %>% 
+  summarise(muss.dens = (mean(c(mussel_1, mussel_2, mussel_3)))*4, SE = SE(c(mussel_1, mussel_2, mussel_3))*4) %>%
+  ggplot(data = ., aes(x = Control.Exclusion, y = muss.dens, shape = Mussels)) +
+  geom_point(size = 3.5, position = position_dodge(0.1)) +
+  geom_errorbar(aes(x = Control.Exclusion , ymin = muss.dens + -SE, ymax = muss.dens + SE, width = 0.05), position = position_dodge(0.1)) +
+  labs(x = '', y = expression("Mussels/m" ^2 )) +
+  theme(legend.title = element_blank(),
+        legend.text = element_text(size = 12)) +
+  theme(axis.line = element_line(colour = "black"),
+        text = element_text(size=18),
+        axis.text.x = element_text(angle=0, vjust=1, hjust =.5, color = "black"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        panel.background = element_blank())
+```
+
+
+
+##Fig 4c  crab burrow density
+```{r Fids Stats}
+#fiddlers
+HMFids <- finalhogmussel %>%
+  group_by(Mussels, Control.Exclusion, Site) %>% 
+  summarise(fid.dens = (mean(c(fid_1, fid_2, fid_3)))*4, SE = (SE(c(fid_1, fid_2, fid_3)))*4)
+
+
+
+
+fids.lme <- lmer(fid.dens ~ Control.Exclusion * Mussels * (1|Site), data = HMFids, REML = T)
+
+Anova(fids.lme, test.statistic = "F")
+summary(fids.lme)
+fids_em <- emmeans(fids.lme, specs = pairwise ~ Control.Exclusion:Mussels)
+fids_em$contrasts
+
+```
+
+
+```{r echo = FALSE, results = 'asis'}
+kable(Anova(fids.lme))
+```
+
+
+```{r Fig 4c plot}
+finalhogmussel %>%
+  group_by(Mussels, Control.Exclusion) %>% 
+  summarise(fid.dens = (mean(c(fid_1, fid_2, fid_3)))*4, SE = SE(c(fid_1, fid_2, fid_3)*4)) %>%
+  ggplot(data = ., aes(x = Control.Exclusion, y = fid.dens, shape = Mussels)) +
+  geom_point(size = 3.5) +
+  geom_errorbar(aes(x = Control.Exclusion , ymin = fid.dens + -SE, ymax = fid.dens + SE, width = 0.05)) +
+  ylim(0,80) +
+  labs(x = "", y = expression("Crab burrows/m" ^2 )) +
+  theme(legend.title = element_blank(),
+        legend.text = element_text(size = 12)) +
+  theme(axis.line = element_line(colour = "black"),
+        text = element_text(size=18),
+        axis.text.x = element_text(angle=0, vjust=1, hjust =.5, color = "black"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        panel.background = element_blank())
+```
+
+
+
+```{r Fig 4c}
+finalhogmussel %>%
+  group_by(Mussels, Control.Exclusion) %>% 
+  summarise(crab.dens = (mean(c(crabs_1, crabs_2, crabs_3)))*4, SE = SE(c(crabs_1, crabs_2, crabs_3)*4)) %>%
+  ggplot(data = ., aes(x = Control.Exclusion, y = crab.dens, shape = Mussels)) +
+  geom_point(size = 2, position = position_dodge(0.1)) +
+  geom_errorbar(aes(x = Control.Exclusion , ymin = crab.dens + -SE, ymax = crab.dens + SE, width = 0.05), position = position_dodge(0.1)) +
+  labs(x = '', y = expression("Marsh crab burrows/m" ^2 )) +
+  theme(axis.line = element_line(colour = "black"),
+        text = element_text(size=14),
+        axis.text.x = element_text(angle=15, vjust=1, hjust =1, color = "black"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        panel.background = element_blank())
+
+```
+
+
+
+
+
+
+
+
+####Supplemental Figures
+
+#S Table 1, hog feces survey
+
+Results from a haphazard hog feces survey in Sapelo marshes over 2 summers.  Whether or not the feces had mussel shells in it was recorded
+
+```{r read in poop data}
+poop <- read.csv("./poop.csv")
+head(poop)
+```
+
+Ive been just presenting this as a table with the total % of poops found with mussels
+
+```{r S Table 1 poop table}
+pootable <- poop %>%
+  group_by(Site) %>% 
+  summarise(totalshells = sum(shells), totalpoop = sum(total))
+pootable
+```
+
+
+```{r}
+
+poop_lm <- lm(shells ~ no.shells, data = poop)
+anova(poop_lm)
+
+t.test(poop$shells~poop$no.shells)
+
+
+```
+
+
+```{r mud area Supp Fig 1a}
+surveystats_fixed %>% 
+  group_by(pred.level) %>%
+  summarise(meanmudA = mean(mudarea, na.rm = TRUE)) %>%
+  ggplot(data = ., aes(x = pred.level, y = meanmudA)) +
+  geom_point(size = 5) +
+  geom_errorbar(aes(x = pred.level, ymin = meanmudA + (-SE(meanmudA)), ymax = meanmudA + (SE(meanmudA)), width = 0)) +
+  scale_x_discrete(limits = c("low", "medium", "high")) +
+  ylim(0, 700) +
+  labs(x = expression("Hog activity level") , y = expression("mud area" (m^2))) +
+  theme(axis.line = element_line(colour = "black"),
+        text = element_text(size=18),
+        axis.text.x = element_text(angle=0, vjust=1, hjust =.5, color = "black"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        panel.background = element_blank())
+```
+
+
+```{r Fig 1c mud area stats}
+MudMod <- surveystats_fixed %>% 
+  group_by(pred.level, pred.disturb, site, flight) %>%
+  filter(site!= "Tim")%>% 
+  summarise(muddyA = sum(mudarea, na.rm = T))
+
+mudA_glmer <- glmer(muddyA ~ pred.level * (1|site), 
+                       family = Gamma,
+                       data = MudMod)
+
+plot(simulateResiduals(mudA_glmer))
+Anova(mudA_glmer)
+drop1(mudA_glmer, test = "Chisq")
+
+
+mudA_lmer <- lmer(mudarea ~ pred.level * (1|site), REML = T, data = surveystats_fixed %>% filter(site!= "Tim"))
+
+Anova(mudA_lmer, test.statistic = "F")
+summary(mudA_lmer)
+
+
+
+
+```
+
+```{r echo = FALSE, results = 'asis'}
+kable(Anova(mudA_lmer))
+```
+
+
+
+#S Fig 1, mussel transplant experiment
+Mussels were transplanted in beds into areas with grass and adjacent mud.  Survival over a week was measured at two sites.  
+
+#Mussel transplant exp
+```{r muss trans data}
+muss.trans <- read.csv("~/Documents/R projects/Hog data code/muss.trans.csv")
+
+```
+Site: Site
+Location: mud flat or patch of spartina
+Rep: 1-8 
+Initial.mussel.number; 20 mussels in each mound
+muss.liveD3: number of mussels alive after day 3
+
+```{r, muss trans stats}
+
+muss.surv <- muss.trans %>%
+  group_by(Site, Location, Rep) %>% 
+  summarise(per.surv = mean(muss.liveD3/Initial.mussel.number))
+  
+trans_mod <- lm(muss.liveD3 ~ Site*Location+0, data = muss.trans)
+
+anova(trans_mod)
+summary(trans_mod)
+
+trans_glm <- glm(per.surv ~ Location * Site, 
+                     family = quasibinomial, 
+                     data = muss.surv)
+Anova(trans_glm, test.statistic = "F")
+summary(trans_glm)
+
+```
+
+
+```{r, results table mussel transpltna}
+  muss.trans %>%
+  group_by(Location) %>% 
+  summarise(per.surv = mean(muss.liveD3/Initial.mussel.number), SE = SE(muss.liveD3/Initial.mussel.number))
+
+
+```
+
+
+```{r, SFig1 plot}
+
+  muss.trans %>%
+  group_by(Location, Site) %>% 
+  summarise(per.surv = mean(muss.liveD3/Initial.mussel.number), SE = SE(muss.liveD3/Initial.mussel.number)) %>%
+  ggplot(data = ., aes(x = Location, y = per.surv, shape = Location)) +
+  geom_point(size = 4) +
+  geom_errorbar(aes(x = Location, ymin = per.surv + -SE, ymax = per.surv + SE, width = 0)) +
+  facet_wrap(~Site) +
+  ylim(0, 1) +
+  labs(x = "", y = expression("Proportion of mussels alive after 10 days" )) +
+  theme(axis.line = element_line(colour = "black"),
+        text = element_text(size=14),
+        axis.text.x = element_text(angle=0, vjust=1, color = "black"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        panel.background = element_blank(),
+        legend.position = 'none')
+
+
+##how did that stat_summary stuff work above but not here? I dont know
+#ggplot(muss.trans, aes(x=Location, y = muss.liveD3, shape = Location)) +
+# geom_point(data = muss.surv, mapping=aes(y=per.surv)) +
+#   stat_summary() +
+# facet_wrap(~Site) +
+#  labs(x = "", y = expression("proportion of mussels alive" )) +
+#  ylim(0,1)+
+#  theme(axis.line = element_line(colour = "black"),
+#        text = element_text(size=20),
+#        axis.text.x = element_text(angle=70, vjust=1, hjust = 1),
+#        panel.grid.major = element_blank(),
+#        panel.grid.minor = element_blank(),
+#        panel.border = element_blank(),
+#        panel.background = element_blank())
+```
+
+
+```{r}
+muss.percap.dat <- read.csv("~/Documents/R projects/Hog data code/mussgone.percap.csv")
+
+```
+
+
+```{r}
+ muss.percap.dat %>%
+  group_by(Site, muss.alive, muss.gone.day) %>%
+  ggplot(data = ., aes(x = muss.alive, y = muss.gone.day)) + 
+  stat_summary() +
+    labs(x = "mussels remaining/mound", y = "mussels eaten/day") +
+  theme(axis.line = element_line(colour = "black"),
+        text = element_text(size=14),
+        axis.text.x = element_text(angle=0, vjust=1, color = "black"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        panel.background = element_blank(),
+        legend.position = 'none')
+```
+
+
+
+```{r}
+
+```
+
+
+
+
+
+
+
+
+
+
+
+      
+############ EXTRA- CAN IGNORE!!!!!!!!!!! ################
+
+```{r, Fig 4a stats density not biomass!}
+######Live Biomass######
+HMGrass <- finalhogmussel %>%
+  group_by(Mussels, Control.Exclusion, Site, Plot) %>% 
+  summarise(sp.dens = (mean(c(livegrass_1, livegrass_2, livegrass_3)))*4)
+
+livegrass_mod <- lm(sp.dens ~ Control.Exclusion * Site*Mussels+0, data = HMGrass)
+livea1 <- aov(sp.dens ~ Control.Exclusion * Site*Mussels, data = HMGrass) #need aov for the tukeys
+
+livegrass.glm <- lmer(sp.dens ~ Control.Exclusion *Mussels + (1|Site), data = HMGrass, REML = T)
+Anova(livegrass.glm, test.statistic = "F")
+summary(livegrass.glm)
+
+
+Anova(livegrass_mod)
+summary(livegrass_mod)
+TukeyHSD(livea1)
+
+
+```
+  
+  
+```{r echo = FALSE, results = 'asis'}
+kable(Anova(livegrass.glm))
+```
+
+
+## Fig 2d, crab burrow density
+CUT CUT CUT CUT DONT USE ANYMORE!!!!!!!!!!!!!
+
+```{r marsh crab stats}
+####Crabs####
+HMCrabs <- finalhogmussel %>%
+  group_by(Mussels, Control.Exclusion, Site, Plot) %>% 
+  summarise(crab.dens = (mean(c(crabs_1, crabs_2, crabs_3)))*4)
+
+crab_mod <- lm(crab.dens ~ Control.Exclusion * Site* Mussels+0, data = HMCrabs)
+a9 <- aov(crab.dens ~ Control.Exclusion * Mussels, data = HMCrabs)
+anova(crab_mod)
+summary(crab_mod)
+TukeyHSD(a9)
+```
+
+
+I thought- what if I calculated RATE of change in the patch recovery exp.  that is here
+
+Months since is a column i created which is the time, in months, since the last measurement.  Thus this is going to be the rate of change at each plot over time 
+```{r calculate and graph recovery rate per month}
+patchrecovrate <- patchrecovFinal %>%
+  group_by(Date, Treatment, Plot, mths.since) %>% 
+  summarise(recov_rate_month = mean(per.change)/mths.since,  recov_rate_year = mean(per.change)/(mths.since/12)) 
+
+patchrecovrate %>%
+  group_by(Treatment, recov_rate_month)
+
+patchrecovrate_mod <- lm(recov_rate_month ~ Treatment * Site * Date+0, data = patchrecovrate)
+
+#not really sure why the plus 0 but make sure the lm is here
+aRate <- aov(recov_rate_month ~ Treatment * Site * Date, data = patchrecovrate) #need aov for the tukeys
+Anova(patchrecovrate_mod)
+summary(patchrecovrate_mod)
+TukeyHSD(aRate)
+
+```
+
+```{r Box plot that shows recovery rate per month}
+
+patchrecovFinal %>%
+  group_by(Treatment, Plot, mths.since) %>% 
+  summarise(recov_rate_month = mean(per.change/mths.since)) %>%
+  ggplot(data = ., aes(x = Treatment, y = recov_rate_month)) +
+  geom_boxplot() +
+  labs(x = "", y = expression("% recovery/month" )) +
+  theme(axis.line = element_line(colour = "black"),
+        text = element_text(size= 14),
+        axis.text.x = element_text(angle=0, vjust=0, hjust = .5),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        panel.background = element_blank())
+```
+
+
+
+
+
+
+
+
+
+
+
+##########TRASH###############
+```{r recovery rate per year }
+patchrecovFinal %>%
+  group_by(Site, Treatment) %>% 
+  summarise(recov_rate_month = mean(per.change)/24,  recov_rate_year = mean(per.change)/2, SE= SE(recov_rate_month))  %>%
+  ggplot(data = ., aes(x = Date, y = recov_rate_year)) +
+  geom_point() +
+  geom_line(aes(group = paste0(Treatment), linetype = Treatment)) +
+  geom_errorbar(aes(ymin = recov_rate_year + (-SE(recov_rate_year)), ymax = recov_rate_year + d(SE(recov_rate_year)), width = 0.2)) +
+  labs(x = "", y = expression("% of plot recovered/year" )) +
+  theme(axis.line = element_line(colour = "black"),
+        text = element_text(size=16),
+        axis.text.x = element_text(angle=40, vjust=1, hjust = 1),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        panel.background = element_blank())
+```
+
+```{r}
+patchrecovFinal %>%
+  group_by(Treatment) %>% 
+  summarise(mean_cover_change = mean(per.final)/2.5, SE = (mean_cover_change = mean(per.final)/2.5)) %>%
+  ggplot(data = ., aes(x = Treatment, y = mean_cover_change)) +
+  geom_point(size = 3) +
+  geom_errorbar(aes(ymin = mean_cover_change + -SE, ymax = mean_cover_change + SE, width = 0.1)) +
+  labs(x = "", y = expression("Mean recovery rate/year" )) +
+  ylim(0, 50) +
+  theme(axis.line = element_line(colour = "black"),
+        text = element_text(size=14),
+        axis.text.x = element_text(angle=00, vjust=0, hjust = 1),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        panel.background = element_blank())
+```
+
+      
+      
+      
+      
