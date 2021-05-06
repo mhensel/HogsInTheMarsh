@@ -29,6 +29,88 @@ SE <- function(x) sd(x)/sqrt(length(x))
 
 
 ### Figure 1
+Next up is the patch recovery experiment where I excluded hogs from recovering patches.  All plots started with 50% grass coverage.  Measured % coverage of the whole plot throughout the course of the experiment 
+
+## Figure 2.  
+The effect of hog exclusion on the recovery of salt marsh patches at two sites over 3 years
+
+```{r Patch Recovery Data}
+patchrecovFinal <- read.csv("./patchrecovFinal.csv")
+patchrecovFinal$Date <- as.Date(patchrecovFinal$Date, format = '%m/%d/%y')
+
+patchrecovTable <- patchrecovFinal %>%
+  group_by(Date, Treatment) %>% 
+  summarise(mean_cover_change = mean(per.final), SE = SE(per.final))  
+
+```
+Site: site Kenan or Miller Pump
+Date: sampling date in M/D/Y
+Plot: Plot number 1-8
+Treatment: Control or Exclusion
+mths.since: months since beginning of experiment. could be used to calc rate
+X live.stem: live stem density /.25m2 (x4 for m2)
+X dead.stem and others are not used 
+per.initial: percent cover of plot at beginning of exp (50%)
+per.final: percent cover of plot at sampling date
+per.change: per.final - per.initial at sampling date
+
+
+mean_cover_change is mean % cover of the plot per treatment at the date sampled.  Averaged across sites
+
+
+```{r Fig 2 using stat sum and no stupid error bar code}
+
+#################
+patchrecovFinal %>%
+  filter(!Date == "2015-12-17") %>%
+ggplot(data = ., aes(x=Date, y = per.final, lty = Treatment, shape = Treatment)) +
+ stat_summary() +
+  geom_smooth(method = "lm", se = FALSE) +
+ #geom_line(data = patchrecov, mapping=aes(y=mean_cover_change)) +
+# facet_wrap(~Site) +
+  labs(x = "", y = expression("Percent cordgrass cover/plot" )) +
+  ylim(25, 100) +
+  theme(legend.title = element_blank(), 
+        legend.text = element_text(size = 10)) +
+  theme(axis.line = element_line(colour = "black"),
+        text = element_text(size=16),
+        axis.text.x = element_text(angle=30, vjust=1, hjust = 1),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        panel.background = element_blank())
+
+
+```
+
+
+
+```{r FIG 3 STATS MIXED EFFECTS}
+end <- c(86, 65.625, 95.625, 91.125) #end % for rate calc. CK CMP EK EMP is the order here
+end/2.5 #approx recovery rate per year
+(end - 50)/2.5 #raw % recovery per year
+
+
+patchrecov_mer <- lmer(per.final ~ Date*Treatment* (1|Site) *(1|Plot), REML = T , data = patchrecovFinal %>% filter(!Date == "2015-12-17"))
+
+summary(patchrecov_mer)
+Anova(patchrecov_mer, test.statistic = "F")
+car::vif(patchrecov_mer)
+patchrecov_em <- emmeans(patchrecov_mer, specs = pairwise ~ mths.since:Treatment)
+patchrecov_em$contrasts
+
+
+qqnorm(patchrecovFinal$per.final)
+qqnorm(residuals(patchrecov_mer))
+plot(patchrecov_mer)
+
+```
+
+```{r echo = FALSE, results = 'asis'}
+kable(Anova(patchrecov_mer))
+```
+
+
 Drone survey of sites with different levels of hog activity.  Gradient on x axis is how much predicticed hog damage occurs in a given hectare of marsh.  This is calculated through land cover data in a published study from Sharp et al. 
 
 ```{r, load in survey stats data}
@@ -160,48 +242,10 @@ kable(Anova(patches_glmer))
 ```
 
 
-```{r}
-ssMod <- surveystats_fixed %>% 
-  group_by(pred.level, pred.disturb, site, flight) %>%
-  #filter(site!= "Tim")%>% 
-  summarise(totalP = length(patcharea))
 
-
-patch.no = surveystats_fixed %>% group_by(flight, pred.level, site) %>%
-  summarize(totalP = length(patcharea))
-
-patchy = surveystats_fixed %>% group_by(flight, pred.level, site)  %>%
-  summarize(patchy = mean(patcharea))
-
-patchiness = full_join(patch.no, patchy) %>% 
-  mutate(patchiness = totalP*patchy)
-
-patchiness_glmer <- glmer(patchiness ~ pred.level * (1|site), 
-                       family = Gamma,
-                       data = patchiness)
-
- ggplot(data = patchiness, aes(x = pred.level, y = patchiness)) +
-  geom_point( size = 5) +
-  #geom_errorbar(aes(x = pred.level, ymin = meanA + -SE, ymax = meanA + SE, width = 0)) +
-  geom_smooth(method = 'lm') +
-  scale_x_discrete(limits = c("low", "medium", "high")) +
-  labs(x = expression("Hog activity level") , y = expression("remnant patch area " (m^2))) +
-  theme(axis.line = element_line(colour = "black"),
-        text = element_text(size=18),
-        axis.text.x = element_text(angle=0, vjust=1, hjust =.5, color = "black"),
-        panel.grid.major = element_blank(),
-        panel.grid.minor = element_blank(),
-        panel.border = element_blank(),
-        panel.background = element_blank())
-
-```
-
-
-
-Can also do means for each site above (no geom_smooth) see below
 
 ```{r Fig 2c mussel survey TOTAL MUSSELS stats}
-muss_data <- read.csv("~/muss.surv_raw.csv")
+muss_data <- read.csv("./muss.surv_raw.csv")
 
 muss.total <- muss_data %>%
   group_by(Hog, Site, Area) %>%
@@ -302,110 +346,6 @@ kable(Anova(muss.ass.glm))
 ```
 
 
-Next up is the patch recovery experiment where I excluded hogs from recovering patches.  All plots started with 50% grass coverage.  Measured % coverage of the whole plot throughout the course of the experiment 
-
-## Figure 2.  
-The effect of hog exclusion on the recovery of salt marsh patches at two sites over 3 years
-
-```{r Patch Recovery Data}
-patchrecovFinal <- read.csv("~/patchrecovFinal.csv")
-patchrecovFinal$Date <- as.Date(patchrecovFinal$Date, format = '%m/%d/%y')
-
-patchrecov2 <- patchrecovFinal %>%
-  group_by(Date, Treatment, mths.since) %>% 
-  filter(!Date == "2015-12-17") %>%
-  summarise(mean_cover_change = mean(per.final), SE = SE(per.final))  
-
-```
-Site: site Kenan or Miller Pump
-Date: sampling date in M/D/Y
-Plot: Plot number 1-8
-Treatment: Control or Exclusion
-mths.since: months since beginning of experiment. could be used to calc rate
-X live.stem: live stem density /.25m2 (x4 for m2)
-X dead.stem and others are not used 
-per.initial: percent cover of plot at beginning of exp (50%)
-per.final: percent cover of plot at sampling date
-per.change: per.final - per.initial at sampling date
-
-
-
-mean_cover_change is mean % cover of the plot per treatment at the date sampled.  Averaged across sites
-```{r Figure 2 OLD CODE. WORKS BUT IS MORE COMPLICATED}
-patchrecovFinal %>%
-  filter(!Date == "2015-12-17") %>%
-  group_by(Date, Treatment, Site) %>% 
-  summarise(mean_cover_change = mean(per.final), SE = SE(per.final)) %>%
-  ggplot(data = ., aes(x = Date, y = mean_cover_change, shape = Treatment)) +
-  geom_point() +
- # geom_line(aes(linetype = Treatment)) + 
-  geom_smooth(method = "lm") +
-  geom_errorbar(aes(x = Date, ymin = mean_cover_change + -SE, ymax = mean_cover_change + SE, width = 0)) +
-  #facet_wrap(~Site) +
-  labs(x = "", y = expression("Percent cover/plot" )) +
-  ylim(25, 100)+
-  theme(axis.line = element_line(colour = "black"),
-        text = element_text(size=20),
-        axis.text.x = element_text(angle=70, vjust=1, hjust = 1),
-        panel.grid.major = element_blank(),
-        panel.grid.minor = element_blank(),
-        panel.border = element_blank(),
-        panel.background = element_blank())
-
-
-```
-
-```{r Fig 2 using stat sum and no stupid error bar code}
-
-#################
-patchrecovFinal %>%
-  filter(!Date == "2015-12-17") %>%
-ggplot(data = ., aes(x=Date, y = per.final, lty = Treatment, shape = Treatment)) +
- stat_summary() +
-  geom_smooth(method = "lm", se = FALSE) +
- #geom_line(data = patchrecov, mapping=aes(y=mean_cover_change)) +
-# facet_wrap(~Site) +
-  labs(x = "", y = expression("Percent cordgrass cover/plot" )) +
-  ylim(25, 100) +
-  theme(legend.title = element_blank(), 
-        legend.text = element_text(size = 10)) +
-  theme(axis.line = element_line(colour = "black"),
-        text = element_text(size=16),
-        axis.text.x = element_text(angle=30, vjust=1, hjust = 1),
-        panel.grid.major = element_blank(),
-        panel.grid.minor = element_blank(),
-        panel.border = element_blank(),
-        panel.background = element_blank())
-
-
-```
-
-
-
-```{r FIG 3 STATS MIXED EFFECTS}
-end <- c(86, 65.625, 95.625, 91.125) #end % for rate calc. CK CMP EK EMP is the order here
-end/2.5 #approx recovery rate per year
-(end - 50)/2.5 #raw % recovery per year
-
-
-patchrecov_mer <- lmer(per.final ~ mths.since*Treatment* (1|Site) *(1|Plot), REML = T , data = patchrecovFinal %>% filter(!Date == "2015-12-17"))
-
-summary(patchrecov_mer)
-Anova(patchrecov_mer, test.statistic = "F")
-car::vif(patchrecov_mer)
-patchrecov_em <- emmeans(patchrecov_mer, specs = pairwise ~ mths.since:Treatment)
-patchrecov_em$contrasts
-
-
-qqnorm(patchrecovFinal$per.final)
-qqnorm(residuals(patchrecov_mer))
-plot(patchrecov_mer)
-
-```
-
-```{r echo = FALSE, results = 'asis'}
-kable(Anova(patchrecov_mer))
-```
 
 ## Figure 3.  
 Hog presence reverses a salt marsh positive interaction network

@@ -1,15 +1,9 @@
 ---
 title: "Hog 1 Code and Data"
 author: "Marc J S Hensel"
-date: "4/5/2018"
+date: "5/6/2021"
 output: html_document
 ---
-```{r echo = FALSE, results = 'asis'}
-kable(inf_em$contrasts)
-```
-
-live_em$contrasts
-
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
@@ -17,7 +11,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 Packages needed for now.  Update as necessary
 
-```{r packages/funcs, echo = Fget}
+```{r packages/funcs, echo = F}
 setwd("~/Documents/R projects/Hog data code")
 
 library(lubridate)
@@ -34,16 +28,15 @@ SE <- function(x) sd(x)/sqrt(length(x))
 
 
 ### Figure 1
-Drone survey of sites with different levels of hog activity.  Gradient on x axis is how much predicticed hog damage occurs in a given hectare of marsh.  This is calculated through land cover data in a to be published study from Sharp et al. 
+Drone survey of sites with different levels of hog activity.  Gradient on x axis is how much predicticed hog damage occurs in a given hectare of marsh.  This is calculated through land cover data in a published study from Sharp et al. 
 
 ```{r, load in survey stats data}
-surveystats_fixed <- read.csv("./surveystats_fixedNONANOSMALL.csv")
+surveystats_fixed <- read.csv("./surveystats_PUB.csv")
 ```
 site: site
 pred.disturb: predicted level of hog disturbance (m2 disturbance per 10000 m2)
 pred.level: low, medium, high correlate w pred.disturb
-flight: name of flight.  2 flights per site
-pathlength: length of paths 
+flight: name of flight.  at most 2 flights per site
 patcharea: area (m) of patches
 mudarea: area (m) of patches
 
@@ -57,7 +50,6 @@ totalP below is the total number of patches in each flight per site
 ```{r Fig 2b total number of patches }
 surveystats_fixed %>% 
   group_by(pred.level, site) %>%
-  filter(site!= "Tim")%>% 
   summarise(totalP = length(patcharea)) %>%
   summarise(totP = mean(totalP), SE = SE(totalP)) %>%
   ggplot(data = ., aes(x = pred.level, y = totP)) +
@@ -78,7 +70,7 @@ surveystats_fixed %>%
 ```{r data table for fig 2b}
 ssMod <- surveystats_fixed %>% 
   group_by(pred.level, pred.disturb, site, flight) %>%
-  filter(site!= "Tim")%>% 
+  #filter(site!= "Tim")%>% 
   summarise(totalP = length(patcharea))
 #%>%
 #  summarise(totP = mean(totalP), SE = SE(totalP))
@@ -111,6 +103,7 @@ Anova(nopatches_lmer, test.statistic = "F")
 ```
 
 ```{r echo = FALSE, results = 'asis'}
+#probably should pixiedust this
 kable(Anova(nopatches_glmer))
 ```
 
@@ -118,7 +111,7 @@ kable(Anova(nopatches_glmer))
 ```{r Fig 2a patch area}
 
 surveystats_fixed %>% 
-  filter(site!= "Tim")%>% 
+  #filter(site!= "Tim")%>% 
   group_by(pred.level) %>%
   summarise(meanA = mean(patcharea), SE = SE(patcharea)) %>%
   ggplot(data = ., aes(x = pred.level, y = meanA)) +
@@ -138,7 +131,7 @@ surveystats_fixed %>%
 
 ```{r means and SE for patch area Fig 2a}
 patchA <- surveystats_fixed %>% 
-  filter(site!= "Tim")%>% 
+  #filter(site!= "Tim")%>% 
   group_by(pred.level, pred.disturb, flight, site) %>%
   summarise(meanA = mean(patcharea), SE = SE(patcharea))
 ```
@@ -166,6 +159,44 @@ anova(patches_glmer)
 ```{r echo = FALSE, results = 'asis'}
 kable(Anova(patches_glmer))
 ```
+
+
+```{r}
+ssMod <- surveystats_fixed %>% 
+  group_by(pred.level, pred.disturb, site, flight) %>%
+  #filter(site!= "Tim")%>% 
+  summarise(totalP = length(patcharea))
+
+
+patch.no = surveystats_fixed %>% group_by(flight, pred.level, site) %>%
+  summarize(totalP = length(patcharea))
+
+patchy = surveystats_fixed %>% group_by(flight, pred.level, site)  %>%
+  summarize(patchy = mean(patcharea))
+
+patchiness = full_join(patch.no, patchy) %>% 
+  mutate(patchiness = totalP*patchy)
+
+patchiness_glmer <- glmer(patchiness ~ pred.level * (1|site), 
+                       family = Gamma,
+                       data = patchiness)
+
+ ggplot(data = patchiness, aes(x = pred.level, y = patchiness)) +
+  geom_point( size = 5) +
+  #geom_errorbar(aes(x = pred.level, ymin = meanA + -SE, ymax = meanA + SE, width = 0)) +
+  geom_smooth(method = 'lm') +
+  scale_x_discrete(limits = c("low", "medium", "high")) +
+  labs(x = expression("Hog activity level") , y = expression("remnant patch area " (m^2))) +
+  theme(axis.line = element_line(colour = "black"),
+        text = element_text(size=18),
+        axis.text.x = element_text(angle=0, vjust=1, hjust =.5, color = "black"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        panel.background = element_blank())
+
+```
+
 
 
 Can also do means for each site above (no geom_smooth) see below
