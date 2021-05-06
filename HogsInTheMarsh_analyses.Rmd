@@ -47,34 +47,26 @@ Site: site Kenan or Miller Pump
 Date: sampling date in M/D/Y
 Plot: Plot number 1-8
 Treatment: Control or Exclusion
-mths.since: months since beginning of experiment. could be used to calc rate
-X live.stem: live stem density /.25m2 (x4 for m2)
-X dead.stem and others are not used 
 per.initial: percent cover of plot at beginning of exp (50%)
 per.final: percent cover of plot at sampling date
 per.change: per.final - per.initial at sampling date
 
 
-mean_cover_change is mean % cover of the plot per treatment at the date sampled.  Averaged across sites
+
+```{r Fig 1 using stat sum and no stupid error bar code}
 
 
-```{r Fig 2 using stat sum and no stupid error bar code}
-
-#################
-patchrecovFinal %>%
-  filter(!Date == "2015-12-17") %>%
-ggplot(data = ., aes(x=Date, y = per.final, lty = Treatment, shape = Treatment)) +
- stat_summary() +
-  geom_smooth(method = "lm", se = FALSE) +
+ggplot(data = patchrecovFinal, ) +
+ stat_summary(aes(x=Date, y = per.final, lty = Treatment), geom = "line", fun.data = "mean_se") +
+  stat_summary(aes(x=Date, y = per.final, shape = Treatment), geom = "pointrange", fun.data = "mean_se") +
  #geom_line(data = patchrecov, mapping=aes(y=mean_cover_change)) +
-# facet_wrap(~Site) +
   labs(x = "", y = expression("Percent cordgrass cover/plot" )) +
   ylim(25, 100) +
   theme(legend.title = element_blank(), 
         legend.text = element_text(size = 10)) +
   theme(axis.line = element_line(colour = "black"),
         text = element_text(size=16),
-        axis.text.x = element_text(angle=30, vjust=1, hjust = 1),
+        #axis.text.x = element_text(angle=30, vjust=1, hjust = 1),
         panel.grid.major = element_blank(),
         panel.grid.minor = element_blank(),
         panel.border = element_blank(),
