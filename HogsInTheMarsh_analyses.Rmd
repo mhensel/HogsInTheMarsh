@@ -23,18 +23,17 @@ library(car)
 library(knitr)
 library(DHARMa)
 library(emmeans)
+library(broom); library(kableExtra); library(pixiedust)
+library(patchwork)
 
 SE <- function(x) sd(x)/sqrt(length(x))
 ```
 
 
-### Figure 1
-Next up is the patch recovery experiment where I excluded hogs from recovering patches.  All plots started with 50% grass coverage.  Measured % coverage of the whole plot throughout the course of the experiment 
+### Figure 1 Experimental Hog Exclusions: patch recovery experiment
+The effect of hog exclusion on the recovery of salt marsh patches at two sites over 2 years
 
-## Figure 2.  
-The effect of hog exclusion on the recovery of salt marsh patches at two sites over 3 years
-
-```{r Patch Recovery Data}
+```{r Patch Recovery Experiment Data}
 patchrecovFinal <- read.csv("./patchrecovFinal.csv")
 patchrecovFinal$Date <- as.Date(patchrecovFinal$Date, format = '%m/%d/%y')
 
@@ -52,61 +51,238 @@ per.final: percent cover of plot at sampling date
 per.change: per.final - per.initial at sampling date
 
 
-
-```{r Fig 1 using stat sum and no stupid error bar code}
-
-
-ggplot(data = patchrecovFinal, ) +
- stat_summary(aes(x=Date, y = per.final, lty = Treatment), geom = "line", fun.data = "mean_se") +
-  stat_summary(aes(x=Date, y = per.final, shape = Treatment), geom = "pointrange", fun.data = "mean_se") +
- #geom_line(data = patchrecov, mapping=aes(y=mean_cover_change)) +
-  labs(x = "", y = expression("Percent cordgrass cover/plot" )) +
+```{r Fig 1}
+Fig1 = 
+ggplot(data = patchrecovFinal, aes(group = Treatment) ) +
+ stat_summary(aes(x=Date, y = per.final, lty = Treatment), geom = "line", fun.data = "mean_se", size = 1.4) +
+  stat_summary(aes(x=Date, y = per.final, group = Treatment), geom = "pointrange", fun.data = "mean_se", size = 1, shape = "circle") +
+  labs(x = "Sampling date", y = expression("Percent cordgrass cover/plot" )) +
+  geom_hline(yintercept = 50, color = "red") +
   ylim(25, 100) +
+  scale_x_continuous(labels=c("Jul 2013", "Jan 2014", "Jul 2014", "Jan 2015", "Jul 2015")) +
+  scale_linetype_discrete(name = "", breaks = c("Exclusion", "Control"), labels = c("Hog Exclusion", "No Exclusion")) +
   theme(legend.title = element_blank(), 
-        legend.text = element_text(size = 10)) +
+        legend.text = element_text(size = 12)) +
   theme(axis.line = element_line(colour = "black"),
-        text = element_text(size=16),
-        #axis.text.x = element_text(angle=30, vjust=1, hjust = 1),
+        text = element_text(size=20), 
+        panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.border = element_blank(), panel.background = element_blank())
+
+Fig1
+```
+
+#Stats for Experimental Hog Exclusion: patch recovery experiment
+
+```{r FIG 1 STATS MIXED EFFECTS}
+
+patchrecov_mer <- lmer(per.final ~ Date*Treatment + (1|Site) + (1|Plot), REML = T , data = patchrecovFinal)
+
+summary(patchrecov_mer)
+patchrecov.anova = Anova(patchrecov_mer, test.statistic = "F")
+```
+
+#Supp Table 2
+```{r make Supp Table 2}
+
+Patchrecovtidy <- tidy(patchrecov.anova)
+
+patchrecov_dust_table <- dust(Patchrecovtidy) %>%
+  sprinkle(col = 2:4, round = 3) %>%
+  sprinkle(col = 5, 
+           fn = quote(pvalString(value))) %>%
+  sprinkle_colnames(term = "Term", 
+                    df = "dF",
+                    Df.res = "dF residual",
+                    statistic = "F",
+                    p.value = "P-value")%>%
+  sprinkle(cols = "term", 
+           replace = c("Sampling Date", "Exclusion Treatment", "Sampling Date * Treatment")) %>%
+  #sprinkle(bg_pattern = c("grey")) %>%
+  kable() %>%
+  kable_styling()
+
+patchrecov_dust_table
+```
+
+
+#Figure 2: Experimental hog exclusions: hog x mussel experiment 
+Hog presence reverses a salt marsh positive interaction network
+
+Here is the results from the hogXmussel experiment, fully factorial hog and mussel addition treatments.  Mussel additions were pressed after year 1 and 2.  RVs are all relevant to the positive int network described by Angelini et al.  RVs presented are final (ie end of the experiment). All plots started w same density of individuals
+RVs-  live Spartina biomass/m2
+      ribbed mussel density/m2
+      crab burrow density/m2 (fiddler, mud, purple marsh crab burrows)
+
+Read this data in.  it has all the RVs from this experiment
+```{r end of experiment data for the hog x mussel experiment}
+HMMaster <- read.csv("./finalhogmussel.csv") %>% select(-X)
+```
+Site
+Date
+Plot: 1-10
+Treatment: treatment written out in full
+Mussels: + or O
+Control/Exclusion: C or E , Hog Control or Hog Exclusion
+sp_biom = spartina biomass
+mussel.dens = mussel density / m2
+crab.dens = fiddler, marsh, mud crab burrow density /m2
+
+##Fig 4
+
+```{r, Fig 4}
+sp.biomFIG = 
+  ggplot(data = HMMaster) +
+  stat_summary(aes(x = Treatment, y = sp.biom, shape = Mussels), geom = "pointrange", fun.data = "mean_se", size = 1.6, position = position_dodge(width = 0.3)) +
+  stat_summary(aes(x = Treatment, y = sp.biom, group = Mussels), geom = "line", fun.data = "mean_se", size = 1, alpha = .5, position = position_dodge(width = 0.3)) +
+  labs(x = "", y = expression("Cordgrass biomass g/m" ^2 )) +
+  theme(legend.title = element_blank(),
+        legend.text = element_text(size = 12)) +
+  theme(legend.justification=c(1,1), legend.position=c(1,1)) +
+  theme(axis.line = element_line(colour = "black"),
+        text = element_text(size=18),
+        axis.text.x = element_text(angle=0, vjust=1, hjust =.5, color = "black"),
+        panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.border = element_blank(), panel.background = element_blank())
+
+mussFIG = 
+  ggplot(data = HMMaster) +
+  stat_summary(aes(x = Treatment, y = mussel.dens, shape = Mussels), geom = "pointrange", fun.data = "mean_se", size = 1.6, position = position_dodge(width = 0.2)) +
+  stat_summary(aes(x = Treatment, y = mussel.dens, group = Mussels), geom = "line", fun.data = "mean_se", size = 1, alpha = .5, position = position_dodge(width = 0.2)) +
+  labs(x = "", y = expression("Mussels /m" ^2 )) +
+  theme(legend.position = "none") +
+  #theme(legend.title = element_blank(),
+  #      legend.text = element_text(size = 12)) +
+  theme(axis.line = element_line(colour = "black"),
+        text = element_text(size=18),
+        axis.text.x = element_text(angle=0, vjust=1, hjust =.5, color = "black"),
+        panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.border = element_blank(), panel.background = element_blank())
+
+crabFIG = 
+  ggplot(data = HMMaster) +
+  stat_summary(aes(x = Treatment, y = crab.dens, shape = Mussels), geom = "pointrange", fun.data = "mean_se", size = 1.6, position = position_dodge(width = 0.3)) +
+  stat_summary(aes(x = Treatment, y = crab.dens, group = Mussels), geom = "line", fun.data = "mean_se", size = 1, alpha = .5, position = position_dodge(width = 0.3)) +
+  labs(x = "", y = expression("Crab burrows /m" ^2 )) +
+  theme(legend.position = "none") +
+  #theme(legend.title = element_blank(),
+  #      legend.text = element_text(size = 12)) +
+  theme(axis.line = element_line(colour = "black"),
+        text = element_text(size=18),
+        axis.text.x = element_text(angle=0, vjust=1, hjust =.5, color = "black"),
         panel.grid.major = element_blank(),
         panel.grid.minor = element_blank(),
         panel.border = element_blank(),
         panel.background = element_blank())
 
+```
 
+```{r, Fig 2 }
+Fig2 = (sp.biomFIG / mussFIG / crabFIG) + plot_annotation(tag_levels = 'A')
 ```
 
 
+Fig2
 
-```{r FIG 3 STATS MIXED EFFECTS}
-end <- c(86, 65.625, 95.625, 91.125) #end % for rate calc. CK CMP EK EMP is the order here
-end/2.5 #approx recovery rate per year
-(end - 50)/2.5 #raw % recovery per year
+##Fig 2 stats
 
+```{r Supp Table 3}
+#Spartina biomass model
+biom.lme <- lmer(sp.biom ~ Treatment * Mussels + (1|Site), data = HMMaster, REML = T)
+biom.anova = Anova(biom.lme, test.statistic = "F")
+#run tukeys contrast test w KF df
+biom_em <- emmeans(biom.lme, specs = pairwise ~ Treatment:Mussels)
+biom_em$contrasts
+#check normality
+plot(simulateResiduals(biom.lme))
 
-patchrecov_mer <- lmer(per.final ~ Date*Treatment* (1|Site) *(1|Plot), REML = T , data = patchrecovFinal %>% filter(!Date == "2015-12-17"))
+#mussel model
+hmmuss.lme <- lmer(mussel.dens ~ Treatment * Mussels + (1|Site), data = HMMaster, REML = T)
+muss.anova = Anova(hmmuss.lme, test.statistic = "F")
+#run tukeys contrast test w KF df
+hmmuss_em <- emmeans(hmmuss.lme, specs = pairwise ~ Treatment:Mussels)
+hmmuss_em$contrasts
+#check normality
+plot(simulateResiduals(hmmuss.lme))
 
-summary(patchrecov_mer)
-Anova(patchrecov_mer, test.statistic = "F")
-car::vif(patchrecov_mer)
-patchrecov_em <- emmeans(patchrecov_mer, specs = pairwise ~ mths.since:Treatment)
-patchrecov_em$contrasts
-
-
-qqnorm(patchrecovFinal$per.final)
-qqnorm(residuals(patchrecov_mer))
-plot(patchrecov_mer)
-
+#crab model
+crab.lme <- lmer(crab.dens ~ Treatment * Mussels + (1|Site), data = HMMaster, REML = T)
+crab.anova = Anova(crab.lme, test.statistic = "F")
+#run tukeys contrast test w KF df
+fids_em <- emmeans(fids.lme, specs = pairwise ~ Treatment:Mussels)
+fids_em$contrasts
+#check normality
+plot(simulateResiduals(fids.lme))
 ```
 
-```{r echo = FALSE, results = 'asis'}
-kable(Anova(patchrecov_mer))
+
+```{r Build Supp Table 3}
+Biomtidy <- tidy(biom.anova)
+Musstidy <- tidy(muss.anova)
+Crabtidy <- tidy(crab.anova)
+
+biom_dust_table <- dust(Biomtidy) %>%
+  sprinkle(col = 2:4, round = 3) %>%
+  sprinkle(col = 5, 
+           fn = quote(pvalString(value))) %>%
+  sprinkle_colnames(term = "Term", 
+                    df = "dF",
+                    Df.res = "dF residual",
+                    statistic = "F",
+                    p.value = "P-value")%>%
+  sprinkle(cols = "term", 
+           replace = c("Hog Exclusion Treatment", "Mussel Treatment", "Exclusion * Mussels")) %>%
+  #sprinkle(bg_pattern = c("grey")) %>%
+  kable() %>%
+  kable_styling()
+
+muss_dust_table <- dust(Musstidy) %>%
+  sprinkle(col = 2:4, round = 3) %>%
+  sprinkle(col = 5, 
+           fn = quote(pvalString(value))) %>%
+  sprinkle_colnames(term = "Term", 
+                    df = "dF",
+                    Df.res = "dF residual",
+                    statistic = "F",
+                    p.value = "P-value")%>%
+  sprinkle(cols = "term", 
+           replace = c("Hog Exclusion Treatment", "Mussel Treatment", "Exclusion * Mussels")) %>%
+  #sprinkle(bg_pattern = c("grey")) %>%
+  kable() %>%
+  kable_styling()
+
+crab_dust_table <- dust(Crabtidy) %>%
+  sprinkle(col = 2:4, round = 3) %>%
+  sprinkle(col = 5, 
+           fn = quote(pvalString(value))) %>%
+  sprinkle_colnames(term = "Term", 
+                    df = "dF",
+                    Df.res = "dF residual",
+                    statistic = "F",
+                    p.value = "P-value")%>%
+  sprinkle(cols = "term", 
+           replace = c("Hog Exclusion Treatment", "Mussel Treatment", "Exclusion * Mussels")) %>%
+  #sprinkle(bg_pattern = c("grey")) %>%
+  kable() %>%
+  kable_styling()
+
+
+biom_dust_table
+muss_dust_table
+crab_dust_table
 ```
 
 
+biom_dust_table
+muss_dust_table
+crab_dust_table
+
+#Figure 3: Pictures from Drone Surveys
+
+#Figure 4: 
 Drone survey of sites with different levels of hog activity.  Gradient on x axis is how much predicticed hog damage occurs in a given hectare of marsh.  This is calculated through land cover data in a published study from Sharp et al. 
 
-```{r, load in survey stats data}
+```{r, load in survey stats data and mussel data}
 surveystats_fixed <- read.csv("./surveystats_PUB.csv")
+muss_data <- read.csv("./muss.surv_raw.csv")
 ```
 site: site
 pred.disturb: predicted level of hog disturbance (m2 disturbance per 10000 m2)
@@ -120,558 +296,200 @@ RVs:  total number of patches
 
 totalP below is the total number of patches in each flight per site
 
-```{r Fig 2b total number of patches }
-surveystats_fixed %>% 
-  group_by(pred.level, site) %>%
-  summarise(totalP = length(patcharea)) %>%
-  summarise(totP = mean(totalP), SE = SE(totalP)) %>%
+```{r Fig 4ab patches }
+Fig4b =
+surveystats_fixed %>% group_by(pred.level, site) %>%
+  summarise(totalP = length(patcharea)) %>% summarise(totP = mean(totalP), SE = SE(totalP)) %>%
   ggplot(data = ., aes(x = pred.level, y = totP)) +
-  geom_point(size = 5) +
-  geom_errorbar(aes(x = pred.level, ymin = totP + -SE, ymax = totP + SE, width = 0)) +
+  geom_point(size = 8) +
+  geom_errorbar(aes(x = pred.level, ymin = totP + -SE, ymax = totP + SE, width = 0), size =1.5) +
   scale_x_discrete(limits = c("low", "medium", "high")) +
   labs(x = expression("Hog activity level") , y = expression("number of remnant patches")) +
-  theme(axis.line = element_line(colour = "black"),
-        text = element_text(size=18),
+  theme(axis.line = element_line(colour = "black"), text = element_text(size=18),
         axis.text.x = element_text(angle=0, vjust=1, hjust =.5, color = "black"),
-        panel.grid.major = element_blank(),
-        panel.grid.minor = element_blank(),
-        panel.border = element_blank(),
-        panel.background = element_blank())
+        panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.border = element_blank(), panel.background = element_blank())
 
-```
-
-```{r data table for fig 2b}
-ssMod <- surveystats_fixed %>% 
-  group_by(pred.level, pred.disturb, site, flight) %>%
-  #filter(site!= "Tim")%>% 
-  summarise(totalP = length(patcharea))
-#%>%
-#  summarise(totP = mean(totalP), SE = SE(totalP))
-
-
-```
-
-
-```{r Fig 2b stats}
-
-nopatches_glmer <- glmer(totalP ~ pred.level * (1|site), 
-                        family = poisson,
-                        data = ssMod)
-plot(simulateResiduals(nopatches_glmer))
-
-Anova(nopatches_glmer)
-drop1(nopatches_glmer, test = "Chisq")
-summary(nopatches_glmer)
-
-nopatches_lmer <- lmer(totalP ~ pred.level * (1|site), REML = T, data = ssMod)
-
-Anova(nopatches_lmer)
-summary(nopatches_lmer)
-Anova(nopatches_lmer, test.statistic = "F")
-
-#nopatches_simple <- lm(totalP ~ pred.level +site, data = ssMod)
-
-#Anova(nopatches_simple)
-#summary(nopatches_simple)
-```
-
-```{r echo = FALSE, results = 'asis'}
-#probably should pixiedust this
-kable(Anova(nopatches_glmer))
-```
-
-
-```{r Fig 2a patch area}
-
-surveystats_fixed %>% 
-  #filter(site!= "Tim")%>% 
-  group_by(pred.level) %>%
+Fig4a = 
+surveystats_fixed %>% group_by(pred.level) %>%
   summarise(meanA = mean(patcharea), SE = SE(patcharea)) %>%
   ggplot(data = ., aes(x = pred.level, y = meanA)) +
-  geom_point( size = 5) +
-  geom_errorbar(aes(x = pred.level, ymin = meanA + -SE, ymax = meanA + SE, width = 0)) +
-  geom_smooth(method = 'lm') +
+  geom_point(size = 8) +
+  geom_errorbar(aes(x = pred.level, ymin = meanA + -SE, ymax = meanA + SE, width = 0), size = 1.5) +
   scale_x_discrete(limits = c("low", "medium", "high")) +
-  labs(x = expression("Hog activity level") , y = expression("remnant patch area " (m^2))) +
-  theme(axis.line = element_line(colour = "black"),
-        text = element_text(size=18),
+  labs(x = "" , y = expression("remnant patch area " (m^2))) +
+  theme(axis.line = element_line(colour = "black"), text = element_text(size=18),
         axis.text.x = element_text(angle=0, vjust=1, hjust =.5, color = "black"),
-        panel.grid.major = element_blank(),
-        panel.grid.minor = element_blank(),
-        panel.border = element_blank(),
-        panel.background = element_blank())
-```
-
-```{r means and SE for patch area Fig 2a}
-patchA <- surveystats_fixed %>% 
-  #filter(site!= "Tim")%>% 
-  group_by(pred.level, pred.disturb, flight, site) %>%
-  summarise(meanA = mean(patcharea), SE = SE(patcharea))
+        panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.border = element_blank(), panel.background = element_blank())
 ```
 
 
-Model: Mean Patch Area ~ predicted disturbance * site 
-ANOVA
-
-```{r Fig 2a stats}
-
-patches_glmer <- glmer(patcharea ~ pred.level * (1|site), 
-                       family = Gamma,
-                       data = surveystats_fixed %>% filter(site!= "Tim"))
-
-plot(simulateResiduals(patches_glmer))
-summary(patches_glmer)
-Anova(patches_glmer)
-drop1(patches_glmer, test = "Chisq")
-anova(patches_glmer)
-
-## do the mixed effects model first.  Stats show no differences though
-#Tim is filtered out
-```
-
-```{r echo = FALSE, results = 'asis'}
-kable(Anova(patches_glmer))
-```
-
-
-
-
-```{r Fig 2c mussel survey TOTAL MUSSELS stats}
-muss_data <- read.csv("./muss.surv_raw.csv")
-
-muss.total <- muss_data %>%
-  group_by(Hog, Site, Area) %>%
-  summarise(muss_tot = sum(No.muss)) 
-
-#new error struc
-muss.glmer.nb <- glmer.nb(No.muss ~ Hog * Area * (1|Site), data = muss_data)
-
-res_mus <- simulateResiduals(muss.glmer.nb)
-plot(res_mus)
-
-car::Anova(muss.glmer.nb)
-#car::Anova(muss.glm, test.statistic = "F")
-summary(muss.glmer.nb)
-muss_em <- emmeans(muss.glmer.nb, specs = pairwise ~ Hog:Area)
-muss_em$contrasts
-
-muss.total_graph <- muss_data %>%
-  group_by(Hog, Area, Site) %>%
-  summarise(muss_tot = sum(No.muss), SE = SE(No.muss)) 
-
-```
-
-
-```{r echo = FALSE, results = 'asis'}
-kable(Anova(muss.glmer.nb))
-```
-  
-```{r mussel survey TOTAL MUSSELS Figure}
-
-#muss_data %>% 
-  #group_by(Hog, Area) %>%
-  #summarise(muss_sum = sum(No.muss)) %>%
-  #summarise(muss_tot = mean(muss_sum), SE = SE(muss_sum)) %>%
-  
-  
-  ggplot(data = muss.total_graph, aes(x = Hog, y = muss_tot, shape = Area), position = position_dodge(0.1)) +
-  stat_summary(fun.y = mean, geom = "point", size = 3.5) +
-  stat_summary(fun.data = mean_se, geom = "errorbar", width = 0) +
-    scale_x_discrete(limits = c("low", "high")) +
-  labs(x = "Hog activity level", y = expression("total mussels per marsh")) +
-  theme(axis.line = element_line(colour = "black"),
-        text = element_text(size=15),
-        axis.text.x = element_text(angle=0, vjust=1, hjust =0.5, color = "black"),
-        panel.grid.major = element_blank(),
-        panel.grid.minor = element_blank(),
-        panel.border = element_blank(),
-        panel.background = element_blank())
-
-
-```
-
-```{r Fig 2d mussel association % w Spartina}
-#muss.ass <- muss_data %>%
-#  group_by(Hog, Area, Site) %>%
-#  summarize(per.ass = mean(sum(Cord)/length(Cord)))
-
-#calculate %
-muss.glmdat <- muss_data %>%
-  group_by(Hog, Area, Site) %>%
-  summarize(yes = sum(Cord), tot = length(Cord), proyes = sum(Cord)/length(Cord))
-
-#new error struc
-muss.ass.glm <- glmer(proyes ~ Hog * Area + (1|Site) , data = muss.glmdat, family = binomial, weights = tot)
-
-res_mus <- simulateResiduals(muss.ass.glm)
-plot(res_mus)
-Anova(muss.ass.glm)
-summary(muss.ass.glm)
-```
-
-
-```{r Mussel and Cordgrass association}
-
+#Figure 4cd
+```{r Fig 4dc}
+Fig4d =
 muss_data %>%
   group_by(Hog, Area, Site) %>%
   summarize(per.ass = mean(sum(Cord)/length(Cord))*100) %>%
   ggplot(data = ., aes(x = Hog, y = per.ass, shape = Area)) +
-  stat_summary(fun.y = mean, geom = "point", size = 3.5) +
-  stat_summary(fun.data = mean_se, geom = "errorbar", width = 0) +
-    scale_x_discrete(limits = c("low", "high")) +
-  #geom_point(size = 3, position = position_dodge(0.1)) +
- # geom_errorbar(aes(x = Hog , ymin = muss_tot + -SE, ymax = muss_tot + SE, width = 0.05)) +
+  stat_summary(fun.data = "mean_se", geom = "pointrange", size = 1.6, position = position_dodge(width = 0.2)) +
+ # stat_summary(aes(group = Area), geom = "line", fun.data = "mean_se", size = 1, alpha = .5, position = position_dodge(width = 0.3)) +
+  scale_x_discrete(limits = c("low", "high")) +
   labs(x = "Hog activity level", y = expression("Cordgrass-mussel association %")) +
-  ylim(0,120) +
+  ylim(0,105) +
+  theme(legend.position = "none") +
   theme(axis.line = element_line(colour = "black"),
-        text = element_text(size=15),
+        text = element_text(size=18),axis.text.x = element_text(angle=0, vjust=1, hjust =0.5, color = "black"),
+        panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.border = element_blank(),panel.background = element_blank())
+
+Fig4c = 
+muss_data %>% group_by(Hog, Area, Site) %>%
+  summarise(muss_tot = sum(No.muss)) %>% #calculate mussels per transect 120m2
+  ggplot(data =., aes(x = Hog, y = muss_tot, shape = Area), position = position_dodge(0.1)) +
+  stat_summary(fun.data = "mean_cl_normal", geom = "pointrange", size = 1.6, position = position_dodge(width = 0.2)) +
+  scale_x_discrete(limits = c("low", "high")) +
+  labs(x = "", y ="mussels per 120 m transect ") +
+  theme(legend.title = element_blank(),
+        legend.text = element_text(size = 12)) +
+  theme(legend.justification=c(1,1), legend.position=c(1,1)) +
+  theme(axis.line = element_line(colour = "black"), text = element_text(size=18),
         axis.text.x = element_text(angle=0, vjust=1, hjust =0.5, color = "black"),
-        panel.grid.major = element_blank(),
-        panel.grid.minor = element_blank(),
-        panel.border = element_blank(),
-        panel.background = element_blank())
-
-```
-
-```{r echo = FALSE, results = 'asis'}
-kable(Anova(muss.ass.glm))
+        panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.border = element_blank(), panel.background = element_blank())
 ```
 
 
-
-## Figure 3.  
-Hog presence reverses a salt marsh positive interaction network
-
-Here is the results from the hogXmussel experiment, fully factorial hog and mussel addition treatments.  Mussel additions were pressed after year 1 and 2.  RVs are all relevant to the positive int netword described by Angelini et al.  RVs presented are final (ie end of the experiment)
-RVs-  live Spartina biomass/m2
-      ribbed mussel density/m2
-      fiddler crab burrow density/m2
-      marsh crab burrow density/m2 (Sesarma and Mud Crab)
-
-
-Read this data in.  it has all the RVs from this experiment
-```{r end of experiment data for the hog x mussel experiment}
-finalhogmussel <- read.csv("~/finalhogmussel.csv")
-```
-Site
-Date
-Plot: 1-10
-Treatment: treatment written out in full
-Mussels: + or O
-Control/Exclusion: C or E , Hog Control or Hog Exclusion
-livegrass_1: live spartina density/.25m2, measured 3 times
-fid_1: fiddler crab burrow density/.25m2
-mussel_1: mussel density/.25m2
-crabs_1: mud crab or sesarma burrow density/.25m2
-```{r master filtered data}
-HMMaster <- finalhogmussel %>%
-  group_by(Mussels, Control.Exclusion) %>% 
-  summarise(sp.dens = (mean(c(livegrass_1, livegrass_2, livegrass_3)))*2, 
-            mussel.dens = (mean(c(mussel_1, mussel_2, mussel_3)))*2, 
-            fid.dens = (mean(c(fid_1, fid_2, fid_3)))*2, 
-            crab.dens = (mean(c(crabs_1, crabs_2, crabs_3)))*2)
-
-#Code below doesnt use this yet but could
-```
-Summary (mean) stats
-sp.dens = Spartina density per m2
-mussel.dens = mussel density per m2
-fid.dens = fiddler crab burrow density per m2
-crab.dens = marsh crab burrow density per m2
-
-##Fig 4a stats
-First stats for NPP.  Grouped by treatment (Mussels, Control.Exclusion), Site (pooled for these because the stats say no diffs between sites)
-
-sp.dens = mean spartina density/m2
-
-  stat_summary(fun.y = mean, geom = "point", size = 3.5) +
-  stat_summary(fun.data = mean_se, geom = "errorbar", width = 0) 
-
-```{r stats BIOMASS EST}
-#calc biomass
-biomE <- finalhogmussel %>%
-  group_by(Mussels, Control.Exclusion, Site, Plot) %>% 
-  summarise(sp.biom = ((mean(c(livegrass_1, livegrass_2, livegrass_3)))*4)* (mean(c(stemh_1, stemh_2, stemh_3, stemh_4, stemh_5, stemh_6, stemh_7, stemh_8, stemh_9, stemh_10)))/16, SE = ((SE(c(livegrass_1, livegrass_2, livegrass_3)))*4)* (mean(c(stemh_1, stemh_2, stemh_3, stemh_4, stemh_5, stemh_6, stemh_7, stemh_8, stemh_9, stemh_10)))/16)
-
-
-
-biom.lme <- lmer(sp.biom ~ Control.Exclusion *Mussels * (1|Site), data = biomE, REML = T)
-Anova(biom.lme, test.statistic = "F")
-summary(biom.lme)
-
-biom_em <- emmeans(biom.lme, specs = pairwise ~ Control.Exclusion:Mussels)
-biom_em$contrasts
-
-plot(simulateResiduals(biom.lme))
-qqnorm(residuals(biom.lme))
-
-
+```{r, Fig 2 }
+Fig4 = (Fig4a + Fig4c) / (Fig4b + Fig4d) + plot_annotation(tag_levels = 'A')
 ```
 
+Fig4
 
+#Fig 4 stats
+```{r Fig 4 stats}
+#calculate total no patches
+ssMod = surveystats_fixed %>% group_by(pred.level, flight) %>%
+  summarise(totalP = length(patcharea))
+#number of remnant patches model 4a
+nopatches_glmer <- glmer(totalP ~ pred.level + (1|site), family = poisson, data = ssMod)
+nopatches.anova = Anova(nopatches_glmer)
+#check normality
+plot(simulateResiduals(nopatches_glmer))
 
+#patch area model
+patcharea_glmer <- glmer(patcharea ~ pred.level * (1|site), family = Gamma, data = surveystats_fixed)
+patcharea.anova = Anova(patcharea_glmer)
+#check normality
+plot(simulateResiduals(patcharea_glmer))
 
-```{r BIOMASS, Fig 4a}
-#biomass?
-finalhogmussel %>%
-  group_by(Mussels, Control.Exclusion) %>% 
-  summarise(sp.biom = ((mean(c(livegrass_1, livegrass_2, livegrass_3)))*4)* (mean(c(stemh_1, stemh_2, stemh_3, stemh_4, stemh_5, stemh_6, stemh_7, stemh_8, stemh_9, stemh_10)))/16, SE = ((SE(c(livegrass_1, livegrass_2, livegrass_3)))*4)* (mean(c(stemh_1, stemh_2, stemh_3, stemh_4, stemh_5, stemh_6, stemh_7, stemh_8, stemh_9, stemh_10)))/16) %>%
-  ggplot(data = ., aes(x = Control.Exclusion, y = sp.biom, shape = Mussels), position = position_dodge(.1)) +
-  geom_point(size = 3, position = position_dodge(0.1)) +
-  geom_errorbar(aes(x = Control.Exclusion , ymin = sp.biom + -SE, ymax = sp.biom + SE, width = 0.05), position = position_dodge(0.1)) +
-  #stat_summary() +
-  ylim(0, 800) +
-  labs(x = "", y = expression("Cordgrass biomass (g) /m" ^2 )) +
-  theme(legend.title = element_blank(),
-        legend.text = element_text(size = 12)) +
-  theme(axis.line = element_line(colour = "black"),
-        text = element_text(size=18),
-        axis.text.x = element_text(angle=0, vjust=1, hjust =.5, color = "black"),
-        panel.grid.major = element_blank(),
-        panel.grid.minor = element_blank(),
-        panel.border = element_blank(),
-        panel.background = element_blank())
+#number of mussels per marsh model
+muss.glmer.nb <- glmer.nb(No.muss ~ Hog * Area * (1|Site), data = muss_data)
+Nomuss.anova = Anova(muss.glmer.nb)
+#posthoc contrasts
+muss_em <- emmeans(muss.glmer.nb, specs = pairwise ~ Hog:Area)
+muss_em$contrasts
+#check normality
+plot(simulateResiduals(muss.glmer.nb)) #deviation just at high numbers, but high reps mean its likely ok
 
+#calculate % association
+muss.glmdat <- muss_data %>% group_by(Hog, Area, Site) %>%
+  summarize(yes = sum(Cord), tot = length(Cord), proyes = sum(Cord)/length(Cord))
+#mussel cordgrass association model
+muss.ass.glm <- glmer(proyes ~ Hog * Area + (1|Site) , data = muss.glmdat, family = binomial, weights = tot)
+mussass.anova = Anova(muss.ass.glm)
+#check normality
+plot(simulateResiduals(muss.ass.glm))
 ```
 
+```{r Build Supp Table 4}
+Nopatchestidy <- tidy(nopatches.anova)
+Patchareatidy <- tidy(patcharea.anova)
+Nomusstidy <- tidy(Nomuss.anova)
+Mussasstidy <- tidy(mussass.anova)
+
+nopatch_dust_table <- dust(Nopatchestidy) %>%
+  sprinkle(col = 2, round = 3) %>%
+  sprinkle(col = 4, 
+           fn = quote(pvalString(value))) %>%
+  sprinkle_colnames(term = "Term", 
+                    df = "dF",
+                    statistic = "Chi-sq",
+                    p.value = "P-value")%>%
+  sprinkle(cols = "term", 
+           replace = c("Hog activity level")) %>%
+  kable() %>%
+  kable_styling()
+
+patcharea_dust_table <- dust(Patchareatidy) %>%
+  sprinkle(col = 2, round = 3) %>%
+  sprinkle(col = 4, 
+           fn = quote(pvalString(value))) %>%
+  sprinkle_colnames(term = "Term", 
+                    df = "dF",
+                    statistic = "Chi-sq",
+                    p.value = "P-value")%>%
+  sprinkle(cols = "term", 
+           replace = c("Hog activity level")) %>%
+  kable() %>%
+  kable_styling()
+
+nomuss_dust_table <- dust(Nomusstidy) %>%
+  sprinkle(col = 2, round = 3) %>%
+  sprinkle(col = 4, 
+           fn = quote(pvalString(value))) %>%
+  sprinkle_colnames(term = "Term", 
+                    df = "dF",
+                    statistic = "Chi-sq",
+                    p.value = "P-value")%>%
+  sprinkle(cols = "term", 
+           replace = c("Hog activity level", "Marsh Location", "Hog activity level * Marsh Location")) %>%
+  kable() %>%
+  kable_styling()
+
+mussass_dust_table <- dust(Mussasstidy) %>%
+  sprinkle(col = 2, round = 3) %>%
+  sprinkle(col = 4, 
+           fn = quote(pvalString(value))) %>%
+  sprinkle_colnames(term = "Term", 
+                    df = "dF",
+                    statistic = "Chi-sq",
+                    p.value = "P-value")%>%
+  sprinkle(cols = "term", 
+           replace = c("Hog activity level", "Marsh Location", "Hog activity level * Marsh Location")) %>%
+  kable() %>%
+  kable_styling()
 
 
-NPP plot below.  Site is not included in the group_by because there were no diffs between the two sites
-
-sp.dens = mean spartina density/m2
-```{r Figure 4a}
-#pooling sites together because of the ANOVA results
-finalhogmussel %>% arrange(Control.Exclusion) %>%
-  mutate(Control.Exclusion = factor(Control.Exclusion, levels=c("Hog exclusion", "Hog control"))) %>%
-  group_by(Mussels, Control.Exclusion) %>% 
-  summarise(sp.dens = (mean(c(livegrass_1, livegrass_2, livegrass_3)))*4, SE = SE(c(livegrass_1, livegrass_2, livegrass_3)*4)) %>%
-  ggplot(data = ., aes(x = Control.Exclusion, y = sp.dens, shape = Mussels), position = position_dodge(0.1)) +
-  geom_point(size = 3.5, position = position_dodge(0.1)) +
-  geom_errorbar(aes(x = Control.Exclusion , ymin = sp.dens + -SE, ymax = sp.dens + SE, width = 0.05), position = position_dodge(0.1)) +
-  labs(x = "", y = expression("Spartina stems/m" ^2 )) +
-  ylim(0, 210) +
-  theme(legend.title = element_blank(),
-        legend.text = element_text(size = 12)) +
-  theme(axis.line = element_line(colour = "black"),
-        text = element_text(size=18),
-        axis.text.x = element_text(angle=0, vjust=1, hjust =.5, color = "black"),
-        panel.grid.major = element_blank(),
-        panel.grid.minor = element_blank(),
-        panel.border = element_blank(),
-        panel.background = element_blank())
-
-
-```
-
-
-##Fig 4b Ribbed Mussels
-
-mussel.dens = mean mussel density/m2
-```{r Fig 4b mussel density stats}
-###MUSSEL######
-HMMuss <- finalhogmussel %>%
-  group_by(Mussels, Control.Exclusion, Site, Plot) %>% 
-  summarise(mussel.dens = (mean(c(mussel_1, mussel_2, mussel_3)))*4)
-
-
-hmmuss.lme <- lmer(mussel.dens ~ Control.Exclusion * Mussels * (1|Site), data = HMMuss, REML = T)
-Anova(hmmuss.lme, test.statistic = "F")
-summary(hmmuss.lme)
-
-hmmuss_em <- emmeans(hmmuss.lme, specs = pairwise ~ Control.Exclusion:Mussels)
-hmmuss_em$contrasts
-
-
-#mussel_mod <- lm(mussel.dens ~ Control.Exclusion * Site*Mussels+0, data = HMMuss)
-
-#mussAnova<- Anova(mussel_mod)
-#summary(mussel_mod)
-
-#a6 <- aov(mussel.dens ~ Control.Exclusion * Site*Mussels, data = HMMuss)
-#TukeyHSD(a6)
-
-##No interaction with site so we are good here to sum everything together##
-```
-
-```{r echo = FALSE, results = 'asis'}
-kable(Anova(hmmuss.lme))
-```
-
-
-```{r Fig 3b Mussel density}
-finalhogmussel %>%
-  group_by(Mussels, Control.Exclusion) %>% 
-  summarise(muss.dens = (mean(c(mussel_1, mussel_2, mussel_3)))*4, SE = SE(c(mussel_1, mussel_2, mussel_3))*4) %>%
-  ggplot(data = ., aes(x = Control.Exclusion, y = muss.dens, shape = Mussels)) +
-  geom_point(size = 3.5, position = position_dodge(0.1)) +
-  geom_errorbar(aes(x = Control.Exclusion , ymin = muss.dens + -SE, ymax = muss.dens + SE, width = 0.05), position = position_dodge(0.1)) +
-  labs(x = '', y = expression("Mussels/m" ^2 )) +
-  theme(legend.title = element_blank(),
-        legend.text = element_text(size = 12)) +
-  theme(axis.line = element_line(colour = "black"),
-        text = element_text(size=18),
-        axis.text.x = element_text(angle=0, vjust=1, hjust =.5, color = "black"),
-        panel.grid.major = element_blank(),
-        panel.grid.minor = element_blank(),
-        panel.border = element_blank(),
-        panel.background = element_blank())
-```
-
-
-
-##Fig 4c  crab burrow density
-```{r Fids Stats}
-#fiddlers
-HMFids <- finalhogmussel %>%
-  group_by(Mussels, Control.Exclusion, Site) %>% 
-  summarise(fid.dens = (mean(c(fid_1, fid_2, fid_3)))*4, SE = (SE(c(fid_1, fid_2, fid_3)))*4)
-
-
-
-
-fids.lme <- lmer(fid.dens ~ Control.Exclusion * Mussels * (1|Site), data = HMFids, REML = T)
-
-Anova(fids.lme, test.statistic = "F")
-summary(fids.lme)
-fids_em <- emmeans(fids.lme, specs = pairwise ~ Control.Exclusion:Mussels)
-fids_em$contrasts
-
-```
-
-
-```{r echo = FALSE, results = 'asis'}
-kable(Anova(fids.lme))
-```
-
-
-```{r Fig 4c plot}
-finalhogmussel %>%
-  group_by(Mussels, Control.Exclusion) %>% 
-  summarise(fid.dens = (mean(c(fid_1, fid_2, fid_3)))*4, SE = SE(c(fid_1, fid_2, fid_3)*4)) %>%
-  ggplot(data = ., aes(x = Control.Exclusion, y = fid.dens, shape = Mussels)) +
-  geom_point(size = 3.5) +
-  geom_errorbar(aes(x = Control.Exclusion , ymin = fid.dens + -SE, ymax = fid.dens + SE, width = 0.05)) +
-  ylim(0,80) +
-  labs(x = "", y = expression("Crab burrows/m" ^2 )) +
-  theme(legend.title = element_blank(),
-        legend.text = element_text(size = 12)) +
-  theme(axis.line = element_line(colour = "black"),
-        text = element_text(size=18),
-        axis.text.x = element_text(angle=0, vjust=1, hjust =.5, color = "black"),
-        panel.grid.major = element_blank(),
-        panel.grid.minor = element_blank(),
-        panel.border = element_blank(),
-        panel.background = element_blank())
-```
-
-
-
-```{r Fig 4c}
-finalhogmussel %>%
-  group_by(Mussels, Control.Exclusion) %>% 
-  summarise(crab.dens = (mean(c(crabs_1, crabs_2, crabs_3)))*4, SE = SE(c(crabs_1, crabs_2, crabs_3)*4)) %>%
-  ggplot(data = ., aes(x = Control.Exclusion, y = crab.dens, shape = Mussels)) +
-  geom_point(size = 2, position = position_dodge(0.1)) +
-  geom_errorbar(aes(x = Control.Exclusion , ymin = crab.dens + -SE, ymax = crab.dens + SE, width = 0.05), position = position_dodge(0.1)) +
-  labs(x = '', y = expression("Marsh crab burrows/m" ^2 )) +
-  theme(axis.line = element_line(colour = "black"),
-        text = element_text(size=14),
-        axis.text.x = element_text(angle=15, vjust=1, hjust =1, color = "black"),
-        panel.grid.major = element_blank(),
-        panel.grid.minor = element_blank(),
-        panel.border = element_blank(),
-        panel.background = element_blank())
-
+nopatch_dust_table
+patcharea_dust_table
+nomuss_dust_table
+mussass_dust_table
 ```
 
 
 
 
 
-
-
-
-####Supplemental Figures
+####Supplemental Materials
 
 #S Table 1, hog feces survey
 
 Results from a haphazard hog feces survey in Sapelo marshes over 2 summers.  Whether or not the feces had mussel shells in it was recorded
 
-```{r read in poop data}
+```{r read in Hog feces survey data data}
 poop <- read.csv("./poop.csv")
-head(poop)
-```
 
-Ive been just presenting this as a table with the total % of poops found with mussels
-
-```{r S Table 1 poop table}
+#create a table of total feces found with shells
 pootable <- poop %>%
   group_by(Site) %>% 
   summarise(totalshells = sum(shells), totalpoop = sum(total))
-pootable
-```
 
-
-```{r}
-
+#lm shows no difference
 poop_lm <- lm(shells ~ no.shells, data = poop)
 anova(poop_lm)
 
-t.test(poop$shells~poop$no.shells)
-
-
 ```
-
-
-```{r mud area Supp Fig 1a}
-surveystats_fixed %>% 
-  group_by(pred.level) %>%
-  summarise(meanmudA = mean(mudarea, na.rm = TRUE)) %>%
-  ggplot(data = ., aes(x = pred.level, y = meanmudA)) +
-  geom_point(size = 5) +
-  geom_errorbar(aes(x = pred.level, ymin = meanmudA + (-SE(meanmudA)), ymax = meanmudA + (SE(meanmudA)), width = 0)) +
-  scale_x_discrete(limits = c("low", "medium", "high")) +
-  ylim(0, 700) +
-  labs(x = expression("Hog activity level") , y = expression("mud area" (m^2))) +
-  theme(axis.line = element_line(colour = "black"),
-        text = element_text(size=18),
-        axis.text.x = element_text(angle=0, vjust=1, hjust =.5, color = "black"),
-        panel.grid.major = element_blank(),
-        panel.grid.minor = element_blank(),
-        panel.border = element_blank(),
-        panel.background = element_blank())
-```
-
-
-```{r Fig 1c mud area stats}
-MudMod <- surveystats_fixed %>% 
-  group_by(pred.level, pred.disturb, site, flight) %>%
-  filter(site!= "Tim")%>% 
-  summarise(muddyA = sum(mudarea, na.rm = T))
-
-mudA_glmer <- glmer(muddyA ~ pred.level * (1|site), 
-                       family = Gamma,
-                       data = MudMod)
-
-plot(simulateResiduals(mudA_glmer))
-Anova(mudA_glmer)
-drop1(mudA_glmer, test = "Chisq")
-
-
-mudA_lmer <- lmer(mudarea ~ pred.level * (1|site), REML = T, data = surveystats_fixed %>% filter(site!= "Tim"))
-
-Anova(mudA_lmer, test.statistic = "F")
-summary(mudA_lmer)
-
-
-
-
-```
-
-```{r echo = FALSE, results = 'asis'}
-kable(Anova(mudA_lmer))
-```
-
 
 
 #S Fig 1, mussel transplant experiment
