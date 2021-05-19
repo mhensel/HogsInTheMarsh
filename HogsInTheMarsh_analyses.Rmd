@@ -496,9 +496,9 @@ anova(poop_lm)
 Mussels were transplanted in beds into areas with grass and adjacent mud.  Survival over a week was measured at two sites.  
 
 #Mussel transplant exp
-```{r muss trans data}
+```{r Fig 3 muss trans data}
 muss.trans <- read.csv("~/Documents/R projects/Hog data code/muss.trans.csv")
-
+muss.percap.dat <- read.csv("~/Documents/R projects/Hog data code/mussgone.percap.csv")
 ```
 Site: Site
 Location: mud flat or patch of spartina
@@ -506,37 +506,21 @@ Rep: 1-8
 Initial.mussel.number; 20 mussels in each mound
 muss.liveD3: number of mussels alive after day 3
 
-```{r, muss trans stats}
-
+```{r, SF 3a muss trans stats}
+#calculate percent survival
 muss.surv <- muss.trans %>%
   group_by(Site, Location, Rep) %>% 
   summarise(per.surv = mean(muss.liveD3/Initial.mussel.number))
-  
-trans_mod <- lm(muss.liveD3 ~ Site*Location+0, data = muss.trans)
 
-anova(trans_mod)
-summary(trans_mod)
-
+#mussel transplant glm
 trans_glm <- glm(per.surv ~ Location * Site, 
                      family = quasibinomial, 
                      data = muss.surv)
 Anova(trans_glm, test.statistic = "F")
-summary(trans_glm)
 
 ```
 
-
-```{r, results table mussel transpltna}
-  muss.trans %>%
-  group_by(Location) %>% 
-  summarise(per.surv = mean(muss.liveD3/Initial.mussel.number), SE = SE(muss.liveD3/Initial.mussel.number))
-
-
-```
-
-
-```{r, SFig1 plot}
-
+```{r, SF3 plot}
   muss.trans %>%
   group_by(Location, Site) %>% 
   summarise(per.surv = mean(muss.liveD3/Initial.mussel.number), SE = SE(muss.liveD3/Initial.mussel.number)) %>%
@@ -555,31 +539,8 @@ summary(trans_glm)
         panel.background = element_blank(),
         legend.position = 'none')
 
-
-##how did that stat_summary stuff work above but not here? I dont know
-#ggplot(muss.trans, aes(x=Location, y = muss.liveD3, shape = Location)) +
-# geom_point(data = muss.surv, mapping=aes(y=per.surv)) +
-#   stat_summary() +
-# facet_wrap(~Site) +
-#  labs(x = "", y = expression("proportion of mussels alive" )) +
-#  ylim(0,1)+
-#  theme(axis.line = element_line(colour = "black"),
-#        text = element_text(size=20),
-#        axis.text.x = element_text(angle=70, vjust=1, hjust = 1),
-#        panel.grid.major = element_blank(),
-#        panel.grid.minor = element_blank(),
-#        panel.border = element_blank(),
-#        panel.background = element_blank())
 ```
-
-
-```{r}
-muss.percap.dat <- read.csv("~/Documents/R projects/Hog data code/mussgone.percap.csv")
-
-```
-
-
-```{r}
+```{r, SF 3b}
  muss.percap.dat %>%
   group_by(Site, muss.alive, muss.gone.day) %>%
   ggplot(data = ., aes(x = muss.alive, y = muss.gone.day)) + 
@@ -594,156 +555,3 @@ muss.percap.dat <- read.csv("~/Documents/R projects/Hog data code/mussgone.perca
         panel.background = element_blank(),
         legend.position = 'none')
 ```
-
-
-
-```{r}
-
-```
-
-
-
-
-
-
-
-
-
-
-
-      
-############ EXTRA- CAN IGNORE!!!!!!!!!!! ################
-
-```{r, Fig 4a stats density not biomass!}
-######Live Biomass######
-HMGrass <- finalhogmussel %>%
-  group_by(Mussels, Control.Exclusion, Site, Plot) %>% 
-  summarise(sp.dens = (mean(c(livegrass_1, livegrass_2, livegrass_3)))*4)
-
-livegrass_mod <- lm(sp.dens ~ Control.Exclusion * Site*Mussels+0, data = HMGrass)
-livea1 <- aov(sp.dens ~ Control.Exclusion * Site*Mussels, data = HMGrass) #need aov for the tukeys
-
-livegrass.glm <- lmer(sp.dens ~ Control.Exclusion *Mussels + (1|Site), data = HMGrass, REML = T)
-Anova(livegrass.glm, test.statistic = "F")
-summary(livegrass.glm)
-
-
-Anova(livegrass_mod)
-summary(livegrass_mod)
-TukeyHSD(livea1)
-
-
-```
-  
-  
-```{r echo = FALSE, results = 'asis'}
-kable(Anova(livegrass.glm))
-```
-
-
-## Fig 2d, crab burrow density
-CUT CUT CUT CUT DONT USE ANYMORE!!!!!!!!!!!!!
-
-```{r marsh crab stats}
-####Crabs####
-HMCrabs <- finalhogmussel %>%
-  group_by(Mussels, Control.Exclusion, Site, Plot) %>% 
-  summarise(crab.dens = (mean(c(crabs_1, crabs_2, crabs_3)))*4)
-
-crab_mod <- lm(crab.dens ~ Control.Exclusion * Site* Mussels+0, data = HMCrabs)
-a9 <- aov(crab.dens ~ Control.Exclusion * Mussels, data = HMCrabs)
-anova(crab_mod)
-summary(crab_mod)
-TukeyHSD(a9)
-```
-
-
-I thought- what if I calculated RATE of change in the patch recovery exp.  that is here
-
-Months since is a column i created which is the time, in months, since the last measurement.  Thus this is going to be the rate of change at each plot over time 
-```{r calculate and graph recovery rate per month}
-patchrecovrate <- patchrecovFinal %>%
-  group_by(Date, Treatment, Plot, mths.since) %>% 
-  summarise(recov_rate_month = mean(per.change)/mths.since,  recov_rate_year = mean(per.change)/(mths.since/12)) 
-
-patchrecovrate %>%
-  group_by(Treatment, recov_rate_month)
-
-patchrecovrate_mod <- lm(recov_rate_month ~ Treatment * Site * Date+0, data = patchrecovrate)
-
-#not really sure why the plus 0 but make sure the lm is here
-aRate <- aov(recov_rate_month ~ Treatment * Site * Date, data = patchrecovrate) #need aov for the tukeys
-Anova(patchrecovrate_mod)
-summary(patchrecovrate_mod)
-TukeyHSD(aRate)
-
-```
-
-```{r Box plot that shows recovery rate per month}
-
-patchrecovFinal %>%
-  group_by(Treatment, Plot, mths.since) %>% 
-  summarise(recov_rate_month = mean(per.change/mths.since)) %>%
-  ggplot(data = ., aes(x = Treatment, y = recov_rate_month)) +
-  geom_boxplot() +
-  labs(x = "", y = expression("% recovery/month" )) +
-  theme(axis.line = element_line(colour = "black"),
-        text = element_text(size= 14),
-        axis.text.x = element_text(angle=0, vjust=0, hjust = .5),
-        panel.grid.major = element_blank(),
-        panel.grid.minor = element_blank(),
-        panel.border = element_blank(),
-        panel.background = element_blank())
-```
-
-
-
-
-
-
-
-
-
-
-
-##########TRASH###############
-```{r recovery rate per year }
-patchrecovFinal %>%
-  group_by(Site, Treatment) %>% 
-  summarise(recov_rate_month = mean(per.change)/24,  recov_rate_year = mean(per.change)/2, SE= SE(recov_rate_month))  %>%
-  ggplot(data = ., aes(x = Date, y = recov_rate_year)) +
-  geom_point() +
-  geom_line(aes(group = paste0(Treatment), linetype = Treatment)) +
-  geom_errorbar(aes(ymin = recov_rate_year + (-SE(recov_rate_year)), ymax = recov_rate_year + d(SE(recov_rate_year)), width = 0.2)) +
-  labs(x = "", y = expression("% of plot recovered/year" )) +
-  theme(axis.line = element_line(colour = "black"),
-        text = element_text(size=16),
-        axis.text.x = element_text(angle=40, vjust=1, hjust = 1),
-        panel.grid.major = element_blank(),
-        panel.grid.minor = element_blank(),
-        panel.border = element_blank(),
-        panel.background = element_blank())
-```
-
-```{r}
-patchrecovFinal %>%
-  group_by(Treatment) %>% 
-  summarise(mean_cover_change = mean(per.final)/2.5, SE = (mean_cover_change = mean(per.final)/2.5)) %>%
-  ggplot(data = ., aes(x = Treatment, y = mean_cover_change)) +
-  geom_point(size = 3) +
-  geom_errorbar(aes(ymin = mean_cover_change + -SE, ymax = mean_cover_change + SE, width = 0.1)) +
-  labs(x = "", y = expression("Mean recovery rate/year" )) +
-  ylim(0, 50) +
-  theme(axis.line = element_line(colour = "black"),
-        text = element_text(size=14),
-        axis.text.x = element_text(angle=00, vjust=0, hjust = 1),
-        panel.grid.major = element_blank(),
-        panel.grid.minor = element_blank(),
-        panel.border = element_blank(),
-        panel.background = element_blank())
-```
-
-      
-      
-      
-      
