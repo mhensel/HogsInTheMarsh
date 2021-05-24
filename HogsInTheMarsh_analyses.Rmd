@@ -35,11 +35,8 @@ The effect of hog exclusion on the recovery of salt marsh patches at two sites o
 
 ```{r Patch Recovery Experiment Data}
 patchrecovFinal <- read.csv("./patchrecovFinal.csv")
-patchrecovFinal$Date <- as.Date(patchrecovFinal$Date, format = '%m/%d/%y')
 
-patchrecovTable <- patchrecovFinal %>%
-  group_by(Date, Treatment) %>% 
-  summarise(mean_cover_change = mean(per.final), SE = SE(per.final))  
+patchrecovFinal$Date <- as.Date(patchrecovFinal$Date, format = '%m/%d/%y')
 
 ```
 Site: site Kenan or Miller Pump
