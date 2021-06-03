@@ -6,25 +6,12 @@ output: html_document
 ---
 Here is all of the code for analyses and figures for Hensel et al 
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-```
-
 Packages needed for now.  Update as necessary
 
 ```{r packages/funcs, echo = F}
-setwd("~/Documents/R projects/Hog data code")
+#setwd("~/Documents/R projects/Hog data code")
 
-library(lubridate)
-library(tidyverse)
-library(lme4)
-library(lmerTest)
-library(car)
-library(knitr)
-library(DHARMa)
-library(emmeans)
-library(broom); library(kableExtra); library(pixiedust)
-library(patchwork)
+library(lubridate);library(tidyverse);library(lme4);library(lmerTest);library(car);library(knitr);library(DHARMa);library(emmeans);library(broom); library(kableExtra); library(pixiedust);library(patchwork); library(ggmap); library(maps)
 
 SE <- function(x) sd(x)/sqrt(length(x))
 ```
@@ -494,8 +481,8 @@ Mussels were transplanted in beds into areas with grass and adjacent mud.  Survi
 
 #Mussel transplant exp
 ```{r Fig 3 muss trans data}
-muss.trans <- read.csv("~/Documents/R projects/Hog data code/muss.trans.csv")
-muss.percap.dat <- read.csv("~/Documents/R projects/Hog data code/mussgone.percap.csv")
+muss.trans <- read.csv("./muss.trans.csv")
+muss.percap.dat <- read.csv("./mussgone.percap.csv")
 ```
 Site: Site
 Location: mud flat or patch of spartina
@@ -555,8 +542,8 @@ Anova(trans_glm, test.statistic = "F")
 
 
 ```{r, make site maps}
-library(ggmap); library(maps); library(mapdata)
-drone.coords <- read.csv("~/Documents/R projects/Hog data code/survey.LatLong.csv")
+
+drone.coords <- read.csv("./survey.LatLong.csv")
 #register_google(key = "AIzaSyC32TOD1UjBwIwe1xOiwCEnYQslhc3a9Ic") 
 myLocation = c(lon =-81.48313936404267, lat = 30.64611264864367)
 myBox <- c(-82, 29, -80, 32)
