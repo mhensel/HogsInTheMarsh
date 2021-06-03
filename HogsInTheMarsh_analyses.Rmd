@@ -552,3 +552,32 @@ Anova(trans_glm, test.statistic = "F")
         panel.background = element_blank(),
         legend.position = 'none')
 ```
+
+
+```{r, make site maps}
+library(ggmap); library(maps); library(mapdata)
+drone.coords <- read.csv("~/Documents/R projects/Hog data code/survey.LatLong.csv")
+#register_google(key = "AIzaSyC32TOD1UjBwIwe1xOiwCEnYQslhc3a9Ic") 
+myLocation = c(lon =-81.48313936404267, lat = 30.64611264864367)
+myBox <- c(-82, 29, -80, 32)
+
+area.map <- get_map(location = myBox,  maptype = "satellite", source = "google", zoom = 8)
+
+
+drone.map <- get_map(location = myLocation,  maptype = "satellite", source = "google", zoom =6)
+
+#SE USA Map
+SEUSA.map = 
+ggmap(drone.map)
+
+#Site Map
+drone.map = 
+ggmap(area.map) + 
+  geom_point(data = drone.coords, aes(x = long, y = lat, color = pred.level), size = 3, alpha = .8, position = position_dodge(width = .1)) +
+  scale_color_manual(values = c("red", "yellow", "orange")) +
+  labs(x = "Longitude", y = "Latitude", color = "Hog activity level")
+
+
+
+```
+
