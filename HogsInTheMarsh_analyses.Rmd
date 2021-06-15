@@ -542,9 +542,9 @@ Anova(trans_glm, test.statistic = "F")
 
 
 ```{r, make site maps}
-
+#make your own key
 drone.coords <- read.csv("./survey.LatLong.csv")
-#register_google(key = "AIzaSyC32TOD1UjBwIwe1xOiwCEnYQslhc3a9Ic") 
+#register_google(key = "XXXXXXXX") 
 myLocation = c(lon =-81.48313936404267, lat = 30.64611264864367)
 myBox <- c(-82, 29, -80, 32)
 
