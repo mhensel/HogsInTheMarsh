@@ -40,6 +40,7 @@ Fig1 =
 ggplot(data = patchrecovFinal, aes(group = Treatment) ) +
  stat_summary(aes(x=Date, y = per.final, lty = Treatment), geom = "line", fun.data = "mean_se", size = 1.4) +
   stat_summary(aes(x=Date, y = per.final, group = Treatment), geom = "pointrange", fun.data = "mean_se", size = 1, shape = "circle") +
+ # geom_point(aes(x=Date, y = per.final, shape = Treatment), size = 2, alpha = .4, position = position_jitter(width = 25, seed = 12)) +
   labs(x = "Sampling date", y = expression("Percent cordgrass cover/plot" )) +
   geom_hline(yintercept = 50, color = "red") +
   ylim(25, 100) +
@@ -98,7 +99,7 @@ RVs-  live Spartina biomass/m2
 
 Read this data in.  it has all the RVs from this experiment
 ```{r end of experiment data for the hog x mussel experiment}
-HMMaster <- read.csv("./finalhogmussel.csv") %>% select(-X)
+HMMaster <- read.csv("./finalhogmussel.csv") 
 ```
 Site
 Date
@@ -191,10 +192,10 @@ plot(simulateResiduals(hmmuss.lme))
 crab.lme <- lmer(crab.dens ~ Treatment * Mussels + (1|Site), data = HMMaster, REML = T)
 crab.anova = Anova(crab.lme, test.statistic = "F")
 #run tukeys contrast test w KF df
-fids_em <- emmeans(fids.lme, specs = pairwise ~ Treatment:Mussels)
-fids_em$contrasts
+crab_em <- emmeans(crab.lme, specs = pairwise ~ Treatment:Mussels)
+crab_em$contrasts
 #check normality
-plot(simulateResiduals(fids.lme))
+plot(simulateResiduals(crab.lme))
 ```
 
 
@@ -353,7 +354,7 @@ Fig4
 #Fig 4 stats
 ```{r Fig 4 stats}
 #calculate total no patches
-ssMod = surveystats_fixed %>% group_by(pred.level, flight) %>%
+ssMod = surveystats_fixed %>% group_by(pred.level, flight, site) %>%
   summarise(totalP = length(patcharea))
 #number of remnant patches model 4a
 nopatches_glmer <- glmer(totalP ~ pred.level + (1|site), family = poisson, data = ssMod)
@@ -394,8 +395,7 @@ Mussasstidy <- tidy(mussass.anova)
 
 nopatch_dust_table <- dust(Nopatchestidy) %>%
   sprinkle(col = 2, round = 3) %>%
-  sprinkle(col = 4, 
-           fn = quote(pvalString(value))) %>%
+  sprinkle(col = 4, round = 7) %>%
   sprinkle_colnames(term = "Term", 
                     df = "dF",
                     statistic = "Chi-sq",
@@ -524,6 +524,8 @@ Anova(trans_glm, test.statistic = "F")
         legend.position = 'none')
 
 ```
+
+
 ```{r, SF 3b}
  muss.percap.dat %>%
   group_by(Site, muss.alive, muss.gone.day) %>%
