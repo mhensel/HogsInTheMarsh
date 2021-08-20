@@ -71,7 +71,7 @@ patchrecov.anova = Anova(patchrecov_mer, test.statistic = "F")
 Patchrecovtidy <- tidy(patchrecov.anova)
 
 patchrecov_dust_table <- dust(Patchrecovtidy) %>%
-  sprinkle(col = 2:4, round = 3) %>%
+  sprinkle(col = 2:4, round = 2) %>%
   sprinkle(col = 5, 
            fn = quote(pvalString(value))) %>%
   sprinkle_colnames(term = "Term", 
